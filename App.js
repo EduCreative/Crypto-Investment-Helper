@@ -1,2 +1,1 @@
-// This file is intentionally left blank.
-// All application logic has been consolidated into index.html to solve a transpilation issue with Babel Standalone.
+// This file's content has been moved to index.html to enable in-browser transpilation.
