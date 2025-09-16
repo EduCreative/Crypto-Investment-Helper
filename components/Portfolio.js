@@ -41,26 +41,29 @@ const HoldingsTable: React.FC<{ holdings: any[], onTrade: (coin: Coin, type: 'bu
             <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                     <th className="p-2">Asset</th>
-                    <th className="p-2">Amount</th>
-                    <th className="p-2">Avg. Buy Price</th>
-                    <th className="p-2">Bought Value</th>
-                    <th className="p-2">Current Value</th>
-                    <th className="p-2">P/L</th>
+                    <th className="p-2 text-right">Amount</th>
+                    <th className="p-2 text-right">Avg. Buy Price</th>
+                    <th className="p-2 text-right">Bought Value</th>
+                    <th className="p-2 text-right">Current Value</th>
+                    <th className="p-2 text-right">P/L</th>
                     <th className="p-2 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {holdings.length > 0 ? holdings.map(({ coin, amount, avgBuyPrice, boughtValue, currentValue, pnl }) => (
+                {holdings.length > 0 ? holdings.map(({ coin, amount, avgBuyPrice, boughtValue, currentValue, pnl, pnlPercentage }) => (
                     <tr key={coin.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700">
                         <td className="p-2 flex items-center">
                             <img src={coin.image} alt={coin.name} className="w-6 h-6 mr-2" />
                             {coin.name} <span className="text-gray-500 dark:text-gray-400 ml-1">{coin.symbol.toUpperCase()}</span>
                         </td>
-                        <td className="p-2">{amount.toFixed(6)}</td>
-                        <td className="p-2">${avgBuyPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                        <td className="p-2">${boughtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="p-2">${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className={`p-2 font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}`}>${pnl.toFixed(2)}</td>
+                        <td className="p-2 text-right">{amount.toFixed(6)}</td>
+                        <td className="p-2 text-right">${avgBuyPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
+                        <td className="p-2 text-right">${boughtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="p-2 text-right">${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className={`p-2 text-right font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}`}>
+                            <div>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                            <div className="text-xs font-normal">({pnlPercentage > 0 ? '+' : ''}{pnlPercentage.toFixed(2)}%)</div>
+                        </td>
                         <td className="p-2 text-center space-x-2">
                            <button onClick={() => onTrade(coin, 'buy')} className="bg-success text-white px-3 py-1 rounded-md text-sm hover:bg-green-500">Buy</button>
                            <button onClick={() => onTrade(coin, 'sell')} className="bg-danger text-white px-3 py-1 rounded-md text-sm hover:bg-red-500">Sell</button>
@@ -93,8 +96,8 @@ const LimitOrdersTable: React.FC<{ orders: LimitOrder[], onCancel: (orderId: str
                         <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                             <th className="p-2">Asset</th>
                             <th className="p-2">Type</th>
-                            <th className="p-2">Amount</th>
-                            <th className="p-2">Limit Price</th>
+                            <th className="p-2 text-right">Amount</th>
+                            <th className="p-2 text-right">Limit Price</th>
                             <th className="p-2">Date Placed</th>
                             <th className="p-2 text-center">Actions</th>
                         </tr>
@@ -107,8 +110,8 @@ const LimitOrdersTable: React.FC<{ orders: LimitOrder[], onCancel: (orderId: str
                                     {order.coin.name}
                                 </td>
                                 <td className={`p-2 font-semibold ${order.type === 'buy' ? 'text-success' : 'text-danger'}`}>{order.type.toUpperCase()}</td>
-                                <td className="p-2">{order.amount.toFixed(6)}</td>
-                                <td className="p-2">${order.limitPrice.toLocaleString()}</td>
+                                <td className="p-2 text-right">{order.amount.toFixed(6)}</td>
+                                <td className="p-2 text-right">${order.limitPrice.toLocaleString()}</td>
                                 <td className="p-2 text-gray-500 dark:text-gray-400">{new Date(order.createdAt).toLocaleString()}</td>
                                 <td className="p-2 text-center">
                                     <button onClick={() => onCancel(order.id)} className="bg-gray-500 text-white px-3 py-1 rounded-md text-xs hover:bg-gray-600">Cancel</button>
@@ -377,8 +380,9 @@ export const Portfolio: React.FC<{ setActivePage: (page: Page) => void }> = ({ s
             const currentValue = holding.amount * currentPrice;
             const boughtValue = holding.amount * holding.avgBuyPrice;
             const pnl = currentValue - boughtValue;
+            const pnlPercentage = boughtValue > 0 ? (pnl / boughtValue) * 100 : 0;
             totalHoldingsValue += currentValue;
-            return { ...holding, currentValue, pnl, boughtValue };
+            return { ...holding, currentValue, pnl, boughtValue, pnlPercentage };
         });
 
         const portfolioValue = portfolio.usdtBalance + totalHoldingsValue;
