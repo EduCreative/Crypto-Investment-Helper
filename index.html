@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <script>
+      // Polyfill for process.env to work in a browser environment
+      // This allows the app to reference environment variables without crashing
+      window.process = window.process || { env: {} };
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crypto Investment Helper</title>
