@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useDApp } from '../context/DAppContext';
-import { useAlerts } from '../context/AlertsContext';
-import type { Coin } from '../types';
+import { useDApp } from '../context/DAppContext.tsx';
+import { useAlerts } from '../context/AlertsContext.tsx';
+import type { Coin } from '../types.ts';
 
 interface CreateAlertModalProps {
   onClose: () => void;

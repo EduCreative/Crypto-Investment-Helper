@@ -1,4 +1,4 @@
-import type { NewsArticle } from '../types';
+import type { NewsArticle } from '../types.ts';
 
 const API_KEY = process.env.CRYPTO_PANIC_API_KEY;
 const API_URL = 'https://cors.eu.org/https://cryptopanic.com/api/v1/posts/';

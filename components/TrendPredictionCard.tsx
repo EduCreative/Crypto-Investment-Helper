@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TrendPrediction } from '../types';
+import type { TrendPrediction } from '../types.ts';
 
 interface TrendPredictionCardProps {
   prediction: TrendPrediction | null;

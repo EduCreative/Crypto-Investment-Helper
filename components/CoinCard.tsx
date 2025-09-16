@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { Coin } from '../types';
-import { useFavorites } from '../context/FavoritesContext';
+import type { Coin } from '../types.ts';
+import { useFavorites } from '../context/FavoritesContext.tsx';
 
 interface CoinCardProps {
   coin: Coin;

@@ -1,10 +1,7 @@
-
-
-
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Coin } from '../types';
-import { usePortfolio } from '../context/PortfolioContext';
-import { useDApp } from '../context/DAppContext';
+import type { Coin } from '../types.ts';
+import { usePortfolio } from '../context/PortfolioContext.tsx';
+import { useDApp } from '../context/DAppContext.tsx';
 
 interface BuyAssetModalProps {
   onClose: () => void;

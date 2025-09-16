@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { PortfolioState, PortfolioContextType, Coin, LimitOrder, Transaction } from '../types';
+import type { PortfolioState, PortfolioContextType, Coin, LimitOrder, Transaction } from '../types.ts';
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 

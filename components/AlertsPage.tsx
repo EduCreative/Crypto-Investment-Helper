@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useAlerts } from '../context/AlertsContext';
-import { useDApp } from '../context/DAppContext';
-import { CreateAlertModal } from './CreateAlertModal';
-import type { PriceAlert, Coin } from '../types';
+import { useAlerts } from '../context/AlertsContext.tsx';
+import { useDApp } from '../context/DAppContext.tsx';
+import { CreateAlertModal } from './CreateAlertModal.tsx';
+import type { PriceAlert, Coin } from '../types.ts';
 
 const AlertItem: React.FC<{ alert: PriceAlert; coin?: Coin; onRemove: (id: string) => void }> = ({ alert, coin, onRemove }) => {
     const conditionText = alert.condition === 'above' ? 'is above' : 'is below';

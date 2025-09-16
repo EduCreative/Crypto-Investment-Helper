@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { useNotifications } from '../context/NotificationsContext';
-import type { Notification } from '../types';
+import { useNotifications } from '../context/NotificationsContext.tsx';
+import type { Notification } from '../types.ts';
 
 const NOTIFICATION_TIMEOUT = 7000; // 7 seconds
 

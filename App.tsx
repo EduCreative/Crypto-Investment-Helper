@@ -1,20 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { Dashboard } from './components/Dashboard';
-import { Portfolio } from './components/Portfolio';
-import { Recommendations } from './components/Recommendations';
-import { LearningCenter } from './components/LearningCenter';
-import { CoinResearch } from './components/CoinResearch';
-import { Compare } from './components/Compare';
-import { PortfolioProvider } from './context/PortfolioContext';
-import type { Page, Coin } from './types';
-import { DAppProvider } from './context/DAppContext';
-import { FavoritesProvider } from './context/FavoritesContext';
-import { AlertsProvider } from './context/AlertsContext';
-import { NotificationsProvider } from './context/NotificationsContext';
-import { AlertsPage } from './components/AlertsPage';
-import { NotificationCenter } from './components/NotificationCenter';
-import { ThemeProvider } from './context/ThemeContext';
+import { Sidebar } from './components/Sidebar.tsx';
+import { Dashboard } from './components/Dashboard.tsx';
+import { Portfolio } from './components/Portfolio.tsx';
+import { Recommendations } from './components/Recommendations.tsx';
+import { LearningCenter } from './components/LearningCenter.tsx';
+import { CoinResearch } from './components/CoinResearch.tsx';
+import { Compare } from './components/Compare.tsx';
+import { PortfolioProvider } from './context/PortfolioContext.tsx';
+import type { Page, Coin } from './types.ts';
+import { DAppProvider } from './context/DAppContext.tsx';
+import { FavoritesProvider } from './context/FavoritesContext.tsx';
+import { AlertsProvider } from './context/AlertsContext.tsx';
+import { NotificationsProvider } from './context/NotificationsContext.tsx';
+import { AlertsPage } from './components/AlertsPage.tsx';
+import { NotificationCenter } from './components/NotificationCenter.tsx';
+import { ThemeProvider } from './context/ThemeContext.tsx';
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('Dashboard');

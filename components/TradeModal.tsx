@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import type { Coin } from '../types';
-import { usePortfolio } from '../context/PortfolioContext';
+import type { Coin } from '../types.ts';
+import { usePortfolio } from '../context/PortfolioContext.tsx';
 
 interface TradeModalProps {
   coin: Coin;

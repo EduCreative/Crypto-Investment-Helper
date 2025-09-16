@@ -1,7 +1,6 @@
-
 import React from 'react';
-import type { Page } from '../types';
-import { ThemeToggle } from './ThemeToggle';
+import type { Page } from '../types.ts';
+import { ThemeToggle } from './ThemeToggle.tsx';
 
 interface SidebarProps {
   activePage: Page;

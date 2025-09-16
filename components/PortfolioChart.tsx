@@ -4,9 +4,9 @@ import 'chartjs-adapter-date-fns';
 import { format } from 'date-fns';
 import { subDays } from 'date-fns/subDays';
 import { subYears } from 'date-fns/subYears';
-import type { Transaction } from '../types';
-import { getCoinMarketChart } from '../services/coingeckoApi';
-import { useTheme } from '../context/ThemeContext';
+import type { Transaction } from '../types.ts';
+import { getCoinMarketChart } from '../services/coingeckoApi.ts';
+import { useTheme } from '../context/ThemeContext.tsx';
 
 interface PortfolioChartProps {
   transactions: Transaction[];

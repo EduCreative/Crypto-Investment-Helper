@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { getAIRecommendations } from '../services/geminiService';
-import { getFearAndGreedIndex } from '../services/externalApis';
-import type { Recommendation, ScoreBreakdown } from '../types';
-import { useDApp } from '../context/DAppContext';
+import { getAIRecommendations } from '../services/geminiService.ts';
+import { getFearAndGreedIndex } from '../services/externalApis.ts';
+import type { Recommendation, ScoreBreakdown } from '../types.ts';
+import { useDApp } from '../context/DAppContext.tsx';
 
 const ScoreBreakdownDisplay: React.FC<{ breakdown: ScoreBreakdown }> = ({ breakdown }) => (
     <div className="w-full mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">

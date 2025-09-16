@@ -1,4 +1,4 @@
-import type { FundamentalData } from '../types';
+import type { FundamentalData } from '../types.ts';
 
 const API_URL = 'https://cors.eu.org/https://data.messari.io/api/v2/assets/';
 

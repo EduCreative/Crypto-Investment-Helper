@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { usePortfolio } from '../context/PortfolioContext';
-import { useDApp } from '../context/DAppContext';
-import { getPortfolioAnalysis } from '../services/geminiService';
-import type { Page, Coin, Transaction, PortfolioAnalysis, LimitOrder } from '../types';
-import { TradeModal } from './TradeModal';
-import { BuyAssetModal } from './BuyAssetModal';
-import { PortfolioChart } from './PortfolioChart';
+import { usePortfolio } from '../context/PortfolioContext.tsx';
+import { useDApp } from '../context/DAppContext.tsx';
+import { getPortfolioAnalysis } from '../services/geminiService.ts';
+import type { Page, Coin, Transaction, PortfolioAnalysis, LimitOrder } from '../types.ts';
+import { TradeModal } from './TradeModal.tsx';
+import { BuyAssetModal } from './BuyAssetModal.tsx';
+import { PortfolioChart } from './PortfolioChart.tsx';
 
 const PortfolioHeader: React.FC<{ portfolioValue: number; totalPNL: number; pnlPercentage: number }> = ({ portfolioValue, totalPNL, pnlPercentage }) => (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">

@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
-import { getTopCoins, getCoinsByIds } from '../services/coingeckoApi';
-import { getFearAndGreedIndex } from '../services/externalApis';
-import { getDailySummary } from '../services/geminiService';
-import type { Coin, FearAndGreed } from '../types';
-import { usePortfolio } from './PortfolioContext';
-import { useFavorites } from './FavoritesContext';
-import { useAlerts } from './AlertsContext';
-import { useNotifications } from './NotificationsContext';
+import { getTopCoins, getCoinsByIds } from '../services/coingeckoApi.ts';
+import { getFearAndGreedIndex } from '../services/externalApis.ts';
+import { getDailySummary } from '../services/geminiService.ts';
+import type { Coin, FearAndGreed } from '../types.ts';
+import { usePortfolio } from './PortfolioContext.tsx';
+import { useFavorites } from './FavoritesContext.tsx';
+import { useAlerts } from './AlertsContext.tsx';
+import { useNotifications } from './NotificationsContext.tsx';
 
 interface DAppContextType {
   coins: Coin[];

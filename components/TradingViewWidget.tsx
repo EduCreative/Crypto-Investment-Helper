@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../context/ThemeContext.tsx';
 
 // The TradingView object is loaded from a script tag in index.html
 declare const TradingView: any;

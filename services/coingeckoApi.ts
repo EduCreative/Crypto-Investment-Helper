@@ -1,4 +1,4 @@
-import type { Coin, CoinDetails } from '../types';
+import type { Coin, CoinDetails } from '../types.ts';
 
 const COINGECKO_API_URL = 'https://cors.eu.org/https://api.coingecko.com/api/v3';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

@@ -1,4 +1,4 @@
-import type { FearAndGreed } from '../types';
+import type { FearAndGreed } from '../types.ts';
 
 const FEAR_AND_GREED_API_URL = 'https://cors.eu.org/https://api.alternative.me/fng/?limit=1';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes

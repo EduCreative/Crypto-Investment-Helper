@@ -1,6 +1,5 @@
-
 import React from 'react';
-import type { NewsArticle } from '../types';
+import type { NewsArticle } from '../types.ts';
 
 interface NewsCardProps {
   article: NewsArticle;

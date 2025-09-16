@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getLatestNews } from '../services/mockApi';
-import type { Coin, NewsArticle, FearAndGreed } from '../types';
-import { CoinCard } from './CoinCard';
-import { NewsCard } from './NewsCard';
-import { FearGreedIndex } from './FearGreedIndex';
-import { useDApp } from '../context/DAppContext';
-import { useFavorites } from '../context/FavoritesContext';
+import { getLatestNews } from '../services/mockApi.ts';
+import type { Coin, NewsArticle, FearAndGreed } from '../types.ts';
+import { CoinCard } from './CoinCard.tsx';
+import { NewsCard } from './NewsCard.tsx';
+import { FearGreedIndex } from './FearGreedIndex.tsx';
+import { useDApp } from '../context/DAppContext.tsx';
+import { useFavorites } from '../context/FavoritesContext.tsx';
 
 const AISummary: React.FC = () => {
   const { dailySummary } = useDApp();

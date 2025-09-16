@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Coin, PortfolioState, Recommendation, TrendPrediction, PortfolioAnalysis } from '../types';
+import type { Coin, PortfolioState, Recommendation, TrendPrediction, PortfolioAnalysis } from '../types.ts';
 
 const API_KEY = process.env.API_KEY;
 

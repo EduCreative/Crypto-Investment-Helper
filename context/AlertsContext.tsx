@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import type { PriceAlert } from '../types';
+import type { PriceAlert } from '../types.ts';
 
 interface AlertsContextType {
   alerts: PriceAlert[];

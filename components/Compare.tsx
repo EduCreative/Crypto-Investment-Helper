@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useDApp } from '../context/DAppContext';
-import { getAIComparison } from '../services/geminiService';
-import type { Coin } from '../types';
+import { useDApp } from '../context/DAppContext.tsx';
+import { getAIComparison } from '../services/geminiService.ts';
+import type { Coin } from '../types.ts';
 
 interface CoinSelectorCardProps {
     coin: Coin;

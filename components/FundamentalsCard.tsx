@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { FundamentalData } from '../types';
+import type { FundamentalData } from '../types.ts';
 
 interface FundamentalsCardProps {
   data: FundamentalData | null;

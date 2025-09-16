@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import type { Coin, Page, NewsArticle, TrendPrediction, FundamentalData, CoinDetails } from '../types';
-import { getCoinNews } from '../services/cryptoPanicApi';
-import { getCoinMarketChart, getCoinDetails } from '../services/coingeckoApi';
-import { getTrendPrediction } from '../services/geminiService';
-import { getFundamentalData } from '../services/messariApi';
-import { useFavorites } from '../context/FavoritesContext';
-import { NewsCard } from './NewsCard';
-import { TradingViewWidget } from './TradingViewWidget';
-import { TrendPredictionCard } from './TrendPredictionCard';
-import { FundamentalsCard } from './FundamentalsCard';
-import { CreateAlertModal } from './CreateAlertModal';
+import type { Coin, Page, NewsArticle, TrendPrediction, FundamentalData, CoinDetails } from '../types.ts';
+import { getCoinNews } from '../services/cryptoPanicApi.ts';
+import { getCoinMarketChart, getCoinDetails } from '../services/coingeckoApi.ts';
+import { getTrendPrediction } from '../services/geminiService.ts';
+import { getFundamentalData } from '../services/messariApi.ts';
+import { useFavorites } from '../context/FavoritesContext.tsx';
+import { NewsCard } from './NewsCard.tsx';
+import { TradingViewWidget } from './TradingViewWidget.tsx';
+import { TrendPredictionCard } from './TrendPredictionCard.tsx';
+import { FundamentalsCard } from './FundamentalsCard.tsx';
+import { CreateAlertModal } from './CreateAlertModal.tsx';
 
 interface CoinResearchProps {
   coin: Coin;
