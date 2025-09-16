@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crypto Investment Helper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // Enable dark mode based on class
+        theme: {
+          extend: {
+            colors: {
+              'gray-900': '#121212',
+              'gray-800': '#1e1e1e',
+              'gray-700': '#2a2a2a',
+              'gray-600': '#3a3a3a',
+              'primary': '#3b82f6',
+              'secondary': '#8b5cf6',
+              'success': '#22c55e',
+              'danger': '#ef4444',
+            },
+          },
+        },
+      }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <style>
+      @keyframes page-fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-page-fade-in {
+        animation: page-fade-in 0.5s ease-out forwards;
+      }
+      
+      @keyframes favorite-pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.5) rotate(15deg); color: #facc15; } /* Tailwind yellow-400 */
+        100% { transform: scale(1) rotate(0deg); }
+      }
+      .animate-favorite-pop {
+        animation: favorite-pop 0.4s ease-in-out;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "date-fns/": "https://aistudiocdn.com/date-fns@^4.1.0/",
+    "chartjs-adapter-date-fns": "https://aistudiocdn.com/chartjs-adapter-date-fns@^3.0.0",
+    "chart.js": "https://aistudiocdn.com/chart.js@^4.5.0",
+    "chart.js/": "https://aistudiocdn.com/chart.js@^4.5.0/",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0"
+  }
+}
+</script>
+</head>
+  <body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+    <div id="root"></div>
+  </body>
+</html>

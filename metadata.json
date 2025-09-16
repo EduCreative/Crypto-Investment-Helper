@@ -1,0 +1,5 @@
+{
+  "name": "Crypto Investment Helper",
+  "description": "An educational web app that combines real-time crypto data, AI-driven analysis, and paper trading to help users learn about crypto investing.",
+  "requestFramePermissions": []
+}
