@@ -815,8 +815,679 @@ const FearGreedIndex = ({ value, classification }) => {
   );
 };
 
-// ... ALL OTHER COMPONENTS WILL BE PASTED HERE IN THE CORRECT ORDER ...
-// The following is a copy-paste of all components from the user's provided files, with inter-module imports/exports removed.
+// =========================================================================
+// ========= ALL OTHER COMPONENTS PASTED HERE FOR CONSOLIDATION ============
+// =========================================================================
+
+const TradeModal = ({ coin, tradeType, onClose }) => {
+  const { portfolio, buyCoin, sellCoin, placeLimitOrder } = usePortfolio();
+  const [orderType, setOrderType] = React.useState('market');
+  const [amount, setAmount] = React.useState('');
+  const [limitPrice, setLimitPrice] = React.useState('');
+  const [total, setTotal] = React.useState(0);
+
+  const holding = portfolio.holdings[coin.id];
+  const maxAmount = tradeType === 'buy'
+    ? portfolio.usdtBalance / coin.current_price
+    : (holding ? holding.amount : 0);
+
+  React.useEffect(() => {
+    const numericAmount = parseFloat(amount);
+    if (!isNaN(numericAmount) && numericAmount > 0) {
+      if (orderType === 'market') {
+        setTotal(numericAmount * coin.current_price);
+      } else {
+        const numericLimitPrice = parseFloat(limitPrice);
+        if (!isNaN(numericLimitPrice) && numericLimitPrice > 0) {
+          setTotal(numericAmount * numericLimitPrice);
+        } else {
+          setTotal(0);
+        }
+      }
+    } else {
+      setTotal(0);
+    }
+  }, [amount, limitPrice, orderType, coin.current_price]);
+
+  const handleAmountChange = (e) => {
+    const value = e.target.value;
+    if (/^\d*\.?\d*$/.test(value)) { // Allow only numbers and one dot
+      setAmount(value);
+    }
+  };
+
+  const handleLimitPriceChange = (e) => {
+    const value = e.target.value;
+    if (/^\d*\.?\d*$/.test(value)) {
+      setLimitPrice(value);
+    }
+  };
+  
+  const handleMaxClick = () => {
+    setAmount(parseFloat(maxAmount.toFixed(8)).toString());
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const numericAmount = parseFloat(amount);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      alert("Please enter a valid amount.");
+      return;
+    }
+    
+    if (orderType === 'market') {
+        let success = false;
+        if (tradeType === 'buy') {
+          success = buyCoin(coin, numericAmount, coin.current_price);
+        } else {
+          success = sellCoin(coin, numericAmount, coin.current_price);
+        }
+        if (success) onClose();
+    } else { // Limit order
+        const numericLimitPrice = parseFloat(limitPrice);
+        if (isNaN(numericLimitPrice) || numericLimitPrice <= 0) {
+            alert("Please enter a valid limit price.");
+            return;
+        }
+        const success = placeLimitOrder(tradeType, coin, numericAmount, numericLimitPrice);
+        if (success) onClose();
+    }
+  };
+
+  const OrderTypeButton = ({ type, label }) => (
+      <button
+        type="button"
+        onClick={() => setOrderType(type)}
+        className={`w-full p-2 text-center font-semibold rounded-md transition-colors ${orderType === type ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+      >
+          {label}
+      </button>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold capitalize">{tradeType} {coin.name}</h2>
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white text-2xl leading-none">&times;</button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-4 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
+            <OrderTypeButton type="market" label="Market" />
+            <OrderTypeButton type="limit" label="Limit" />
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {orderType === 'limit' && (
+            <div className="mb-4">
+                <label htmlFor="limitPrice" className="block font-medium text-sm text-gray-500 dark:text-gray-400 mb-1">Limit Price (USD)</label>
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                    <input type="text" id="limitPrice" value={limitPrice} onChange={handleLimitPriceChange} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 pl-6 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0.00" aria-label="Limit price in USD" />
+                </div>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <div className="flex justify-between items-baseline text-sm text-gray-500 dark:text-gray-400 mb-1">
+              <label htmlFor="amount" className="font-medium">Amount ({coin.symbol.toUpperCase()})</label>
+              <span>{tradeType === 'buy' ? 'Balance:' : 'Holding:'} {maxAmount.toFixed(4)}</span>
+            </div>
+            <div className="relative">
+                <input type="text" id="amount" value={amount} onChange={handleAmountChange} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0.00" aria-label={`Amount in ${coin.symbol.toUpperCase()}`} />
+                 <button type="button" onClick={handleMaxClick} className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white text-xs px-2 py-1 rounded hover:bg-blue-500 transition-colors">MAX</button>
+            </div>
+          </div>
+
+          <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-3 flex justify-between items-center text-gray-600 dark:text-gray-300 mb-4">
+            <span className="flex items-center text-sm"><i className="fas fa-tag mr-2 text-primary"></i>Market Price</span>
+            <span className="font-mono font-semibold text-gray-900 dark:text-white">${coin.current_price.toLocaleString()}</span>
+          </div>
+
+          <div className="border-t border-gray-200 dark:border-gray-600 my-4"></div>
+
+          <div className="flex justify-between items-center text-xl font-bold mb-6">
+            <span className="text-gray-600 dark:text-gray-300">{orderType === 'market' ? 'Total' : 'Est. Total'}</span>
+            <span className="font-mono">${total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+          </div>
+          <button type="submit" className={`w-full p-3 rounded-md font-bold text-white transition-colors ${tradeType === 'buy' ? 'bg-success hover:bg-green-500' : 'bg-danger hover:bg-red-500'}`}>
+            {orderType === 'market' ? `Confirm Market ${tradeType}` : `Place Limit ${tradeType} Order` }
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const BuyAssetModal = ({ onClose }) => {
+  const { portfolio, buyCoin } = usePortfolio();
+  const { coins } = useDApp();
+  const [selectedCoinId, setSelectedCoinId] = React.useState('');
+  const [inputType, setInputType] = React.useState('usdt');
+  const [inputValue, setInputValue] = React.useState('');
+  
+  const selectedCoin = React.useMemo(() => {
+      return coins.find(c => c.id === selectedCoinId) || null;
+  }, [selectedCoinId, coins]);
+
+  React.useEffect(() => { setInputValue(''); }, [selectedCoinId]);
+
+  const { coinAmount, usdtTotal } = React.useMemo(() => {
+    if (!selectedCoin || !inputValue) return { coinAmount: 0, usdtTotal: 0 };
+    const numericValue = parseFloat(inputValue);
+    if (isNaN(numericValue) || numericValue < 0) return { coinAmount: 0, usdtTotal: 0 };
+
+    if (inputType === 'usdt') {
+      return { usdtTotal: numericValue, coinAmount: numericValue / selectedCoin.current_price, };
+    } else {
+      return { usdtTotal: numericValue * selectedCoin.current_price, coinAmount: numericValue, };
+    }
+  }, [inputValue, inputType, selectedCoin]);
+
+  const handleInputTypeChange = (newType) => {
+    if (inputType !== newType) { setInputValue(''); setInputType(newType); }
+  };
+
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    if (/^\d*\.?\d*$/.test(value)) { setInputValue(value); }
+  };
+  
+  const handleMaxClick = () => {
+    if (!selectedCoin) return;
+    if (inputType === 'usdt') {
+      setInputValue(portfolio.usdtBalance.toFixed(2));
+    } else {
+      const maxCoin = portfolio.usdtBalance / selectedCoin.current_price;
+      setInputValue(parseFloat(maxCoin.toFixed(8)).toString());
+    }
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedCoin) { alert("Please select a coin."); return; }
+    if (coinAmount <= 0) { alert("Please enter a valid amount."); return; }
+    const success = buyCoin(selectedCoin, coinAmount, selectedCoin.current_price);
+    if (success) { onClose(); }
+  };
+
+  const subtext = React.useMemo(() => {
+    if (!inputValue || !selectedCoin) return '';
+    if (inputType === 'usdt') return `≈ ${coinAmount.toFixed(6)} ${selectedCoin.symbol.toUpperCase()}`;
+    return `≈ $${usdtTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, [inputValue, inputType, selectedCoin, coinAmount, usdtTotal]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">Buy New Asset</h2>
+          <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white text-2xl leading-none">&times;</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label htmlFor="coin" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Select Coin</label>
+            <select id="coin" value={selectedCoinId} onChange={(e) => setSelectedCoinId(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary">
+                <option value="" disabled>-- Choose a cryptocurrency --</option>
+                {coins.map(coin => (<option key={coin.id} value={coin.id}>{coin.name} ({coin.symbol.toUpperCase()})</option>))}
+            </select>
+          </div>
+          {selectedCoin && (<>
+              <div className="mb-4">
+                <div className="flex items-center space-x-2 mb-2">
+                    <button type="button" onClick={() => handleInputTypeChange('usdt')} className={`px-3 py-1 text-sm rounded-md transition-colors ${inputType === 'usdt' ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Buy in USDT</button>
+                    <button type="button" onClick={() => handleInputTypeChange('coin')} className={`px-3 py-1 text-sm rounded-md transition-colors ${inputType === 'coin' ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Buy in {selectedCoin.symbol.toUpperCase()}</button>
+                </div>
+                <div className="flex justify-between items-baseline text-sm text-gray-500 dark:text-gray-400 mb-1">
+                  <label htmlFor="amount" className="font-medium">Amount</label>
+                  <span>Balance: {portfolio.usdtBalance.toFixed(2)} USDT</span>
+                </div>
+                <div className="relative">
+                    <input type="text" id="amount" value={inputValue} onChange={handleInputChange} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0.00" aria-label={`Amount in ${inputType}`} />
+                     <span className="absolute right-14 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 font-semibold">{inputType.toUpperCase()}</span>
+                     <button type="button" onClick={handleMaxClick} className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white text-xs px-2 py-1 rounded hover:bg-blue-500 transition-colors">MAX</button>
+                </div>
+                {subtext && <p className="text-right text-sm text-gray-500 dark:text-gray-400 mt-1 h-5">{subtext}</p>}
+              </div>
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-3 flex justify-between items-center text-gray-600 dark:text-gray-300 mb-4">
+                <span className="flex items-center text-sm"><i className="fas fa-tag mr-2 text-primary"></i>Current Price</span>
+                <span className="font-mono font-semibold text-gray-900 dark:text-white">${selectedCoin.current_price.toLocaleString()}</span>
+              </div>
+              <div className="border-t border-gray-200 dark:border-gray-600 my-4"></div>
+              <div className="flex justify-between items-center text-xl font-bold mb-6">
+                <span className="text-gray-600 dark:text-gray-300">Total</span>
+                <span className="font-mono">${usdtTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+              </div>
+              <button type="submit" className="w-full p-3 rounded-md font-bold text-white transition-colors bg-success hover:bg-green-500">Confirm Buy</button>
+            </>)}
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const PortfolioChart = ({ transactions, initialBalance }) => {
+    const canvasRef = React.useRef(null);
+    const chartInstanceRef = React.useRef(null);
+    const { theme } = useTheme();
+
+    const [chartData, setChartData] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
+    const [timeRange, setTimeRange] = React.useState('90D');
+    
+    const sortedTxs = React.useMemo(() => {
+        return [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [transactions]);
+
+    React.useEffect(() => {
+        const generateChartData = async () => {
+            if (sortedTxs.length === 0) { setLoading(false); setChartData(null); return; }
+            try {
+                setLoading(true); setError(null);
+                const coinIds = [...new Set(sortedTxs.map(tx => tx.coin.id))];
+                const days = { '7D': 7, '30D': 30, '90D': 90, '1Y': 365, 'ALL': 'max' }[timeRange];
+                const priceResults = [];
+                for (const id of coinIds) {
+                    try {
+                        const result = await getCoinMarketChart(id, days);
+                        priceResults.push(result);
+                    } catch (e) {
+                        console.error(`Could not fetch market data for ${id}, skipping for chart.`, e);
+                        priceResults.push({ prices: [], total_volumes: [] });
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 350));
+                }
+                const priceMap = {};
+                coinIds.forEach((id, index) => {
+                    priceMap[id] = {};
+                    priceResults[index]?.prices.forEach(([timestamp, price]) => {
+                        const dateStr = dateFns.format(new Date(timestamp), 'yyyy-MM-dd');
+                        priceMap[id][dateStr] = price;
+                    });
+                });
+                const endDate = new Date(); endDate.setUTCHours(0, 0, 0, 0);
+                let startDate;
+                if (days === 'max') { startDate = new Date(sortedTxs[0].date); } 
+                else if (days === 365) { startDate = dateFns.subYears(endDate, 1); } 
+                else { startDate = dateFns.subDays(endDate, days - 1); }
+                startDate.setUTCHours(0, 0, 0, 0);
+                const portfolioHistory = [];
+                const transactionPoints = [];
+                let currentHoldings = {};
+                let currentUsdtBalance = initialBalance;
+                const relevantTxsBeforeStart = sortedTxs.filter(tx => new Date(tx.date) < startDate);
+                for (const tx of relevantTxsBeforeStart) {
+                     if (tx.type === 'buy') {
+                        currentUsdtBalance -= tx.total;
+                        currentHoldings[tx.coin.id] = (currentHoldings[tx.coin.id] || 0) + tx.amount;
+                    } else {
+                        currentUsdtBalance += tx.total;
+                        currentHoldings[tx.coin.id] = (currentHoldings[tx.coin.id] || 0) - tx.amount;
+                    }
+                }
+                let txIndex = relevantTxsBeforeStart.length;
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const currentDate = new Date(d);
+                    const currentDateStr = dateFns.format(currentDate, 'yyyy-MM-dd');
+                    const nextDay = new Date(currentDate); nextDay.setDate(nextDay.getDate() + 1);
+                    while (txIndex < sortedTxs.length && new Date(sortedTxs[txIndex].date) < nextDay) {
+                        const tx = sortedTxs[txIndex];
+                        if (tx.type === 'buy') {
+                            currentUsdtBalance -= tx.total;
+                            currentHoldings[tx.coin.id] = (currentHoldings[tx.coin.id] || 0) + tx.amount;
+                        } else {
+                            currentUsdtBalance += tx.total;
+                            currentHoldings[tx.coin.id] = (currentHoldings[tx.coin.id] || 0) - tx.amount;
+                        }
+                        transactionPoints.push({ x: new Date(tx.date).getTime(), y: 0, type: tx.type });
+                        txIndex++;
+                    }
+                    let holdingsValue = 0;
+                    for (const coinId in currentHoldings) {
+                        const amount = currentHoldings[coinId];
+                        if (amount > 1e-9) {
+                            let priceForDay = priceMap[coinId]?.[currentDateStr];
+                            if (!priceForDay) {
+                                for (let i = 1; i <= 7; i++) {
+                                    const lookbackDate = dateFns.subDays(currentDate, i);
+                                    const lookbackDateStr = dateFns.format(lookbackDate, 'yyyy-MM-dd');
+                                    if (priceMap[coinId]?.[lookbackDateStr]) { priceForDay = priceMap[coinId][lookbackDateStr]; break; }
+                                }
+                            }
+                            if (priceForDay) holdingsValue += amount * priceForDay;
+                        }
+                    }
+                    const totalValue = holdingsValue + currentUsdtBalance;
+                    portfolioHistory.push({ date: currentDate.getTime(), value: totalValue });
+                }
+                const valueMap = new Map(portfolioHistory.map(p => [dateFns.format(new Date(p.date), 'yyyy-MM-dd'), p.value]));
+                transactionPoints.forEach(p => { p.y = valueMap.get(dateFns.format(new Date(p.x), 'yyyy-MM-dd')) || 0; });
+                setChartData({ labels: portfolioHistory.map(p => p.date), datasets: [{ label: 'Portfolio Value', data: portfolioHistory.map(p => p.value), type: 'line', }, { label: 'Initial Investment', data: portfolioHistory.map(() => initialBalance), type: 'line', }, { label: 'Transactions', data: transactionPoints, type: 'scatter', }] });
+            } catch (e) {
+                console.error("Failed to generate portfolio chart data:", e);
+                setError("Could not load chart data due to an external API error. Please try again later.");
+            } finally { setLoading(false); }
+        };
+        generateChartData();
+    }, [sortedTxs, initialBalance, timeRange]);
+
+    React.useEffect(() => {
+        if (!canvasRef.current || !chartData) {
+            if (chartInstanceRef.current) chartInstanceRef.current.destroy();
+            return;
+        }
+        if (chartInstanceRef.current) chartInstanceRef.current.destroy();
+        const ctx = canvasRef.current.getContext('2d');
+        if (!ctx) return;
+        const isDark = theme === 'dark';
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)';
+        const textColor = isDark ? '#e5e7eb' : '#4b5563';
+        const primaryColor = '#3b82f6';
+        const successColor = '#22c55e';
+        const dangerColor = '#ef4444';
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
+        gradient.addColorStop(1, isDark ? 'rgba(59, 130, 246, 0.01)' : 'rgba(59, 130, 246, 0)');
+        chartInstanceRef.current = new Chart(ctx, {
+            data: { labels: chartData.labels, datasets: [ { ...chartData.datasets[0], fill: true, borderColor: primaryColor, backgroundColor: gradient, pointRadius: 0, tension: 0.3, borderWidth: 2, }, { ...chartData.datasets[1], borderColor: isDark ? '#6b7280' : '#9ca3af', borderDash: [5, 5], pointRadius: 0, borderWidth: 1, }, { ...chartData.datasets[2], pointBackgroundColor: (context) => context.raw.type === 'buy' ? successColor : dangerColor, pointBorderColor: (context) => context.raw.type === 'buy' ? successColor : dangerColor, pointRadius: 5, pointHoverRadius: 8, } ] },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'time', time: { unit: 'day', tooltipFormat: 'MMM d, yyyy' }, ticks: { color: textColor, maxRotation: 0, autoSkip: true, autoSkipPadding: 20 }, grid: { display: false }, }, y: { ticks: { color: textColor, callback: (value) => `$${Number(value).toLocaleString()}`, }, grid: { color: gridColor }, border: { display: false } } }, plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, backgroundColor: isDark ? '#1e1e1e' : '#fff', titleColor: textColor, bodyColor: textColor, borderColor: gridColor, borderWidth: 1, callbacks: { label: (context) => { if (context.dataset.label === 'Portfolio Value') { return ` Value: $${context.parsed.y.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; } return null; }, }, }, }, interaction: { mode: 'index', intersect: false, }, }
+        });
+        return () => { if (chartInstanceRef.current) chartInstanceRef.current.destroy(); };
+    }, [chartData, theme, initialBalance]);
+
+    const TimeRangeButton = ({ range }) => (
+        <button onClick={() => setTimeRange(range)} className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors ${timeRange === range ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`} >{range}</button>
+    );
+
+    return (
+        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-3">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Portfolio History</h2>
+                <div className="flex items-center space-x-2 p-1 bg-gray-200 dark:bg-gray-900/50 rounded-lg">
+                    {['7D', '30D', '90D', '1Y', 'ALL'].map(r => <TimeRangeButton key={r} range={r} />)}
+                </div>
+            </div>
+            <div className="relative h-72">
+                {loading && ( <div className="absolute inset-0 flex items-center justify-center bg-gray-100/50 dark:bg-gray-800/50 z-10"><i className="fas fa-spinner fa-spin text-2xl text-primary"></i><p className="ml-3 text-gray-500 dark:text-gray-400">Building portfolio history chart...</p></div> )}
+                {error && <div className="absolute inset-0 flex items-center justify-center text-danger text-center p-4">{error}</div>}
+                {!loading && !error && (transactions.length === 0 || !chartData) && ( <div className="absolute inset-0 flex items-center justify-center text-center"><div className="text-gray-500 dark:text-gray-500"><i className="fas fa-chart-line text-4xl mb-3"></i><p>Your portfolio chart will appear here once you make your first transaction.</p></div></div> )}
+                <canvas ref={canvasRef}></canvas>
+            </div>
+        </div>
+    );
+};
+
+const Portfolio = ({ setActivePage }) => {
+    const { portfolio, cancelLimitOrder } = usePortfolio();
+    const { coins, loading: coinsLoading } = useDApp();
+    const [isTradeModalOpen, setTradeModalOpen] = React.useState(false);
+    const [isBuyModalOpen, setBuyModalOpen] = React.useState(false);
+    const [selectedCoin, setSelectedCoin] = React.useState(null);
+    const [tradeType, setTradeType] = React.useState('buy');
+    const handleTradeClick = (coin, type) => { setSelectedCoin(coin); setTradeType(type); setTradeModalOpen(true); };
+    const handleBuyNewAsset = () => { setBuyModalOpen(true); };
+    const portfolioData = React.useMemo(() => {
+        if (coinsLoading) return { holdings: [], portfolioValue: portfolio.usdtBalance, totalPNL: 0, pnlPercentage: 0 };
+        const holdingsArray = Object.values(portfolio.holdings);
+        let totalHoldingsValue = 0;
+        const detailedHoldings = holdingsArray.map(holding => {
+            const currentCoinData = coins.find(c => c.id === holding.coin.id);
+            const currentPrice = currentCoinData ? currentCoinData.current_price : holding.avgBuyPrice;
+            const currentValue = holding.amount * currentPrice;
+            const boughtValue = holding.amount * holding.avgBuyPrice;
+            const pnl = currentValue - boughtValue;
+            const pnlPercentage = boughtValue > 0 ? (pnl / boughtValue) * 100 : 0;
+            totalHoldingsValue += currentValue;
+            return { ...holding, currentValue, pnl, boughtValue, pnlPercentage };
+        });
+        const portfolioValue = portfolio.usdtBalance + totalHoldingsValue;
+        const totalPNL = portfolioValue - portfolio.initialBalance;
+        const pnlPercentage = portfolio.initialBalance > 0 ? (totalPNL / portfolio.initialBalance) * 100 : 0;
+        return { holdings: detailedHoldings, portfolioValue, totalPNL, pnlPercentage };
+    }, [portfolio, coins, coinsLoading]);
+    if (coinsLoading && !portfolioData.holdings.length) { return <div className="text-center p-10"><i className="fas fa-spinner fa-spin text-4xl text-primary"></i><p className="mt-4">Loading portfolio data...</p></div>; }
+    const PortfolioHeader = ({ portfolioValue, totalPNL, pnlPercentage }) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Portfolio Value</h3><p className="text-2xl font-bold">${portfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Profit/Loss</h3><p className={`text-2xl font-bold ${totalPNL >= 0 ? 'text-success' : 'text-danger'}`}>{totalPNL >= 0 ? '+' : '-'}${Math.abs(totalPNL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>
+            <div className="relative group cursor-help"><div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center"><h3 className="text-gray-500 dark:text-gray-400 text-sm font-medium">P/L Percentage</h3><p className={`text-2xl font-bold ${pnlPercentage >= 0 ? 'text-success' : 'text-danger'}`}>{pnlPercentage.toFixed(2)}%</p></div><div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-3 py-1.5 bg-gray-700 dark:bg-gray-900 text-white text-sm rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">Total P/L: {totalPNL >= 0 ? '+' : '-'}${Math.abs(totalPNL).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-700 dark:border-t-gray-900"></div></div></div>
+        </div>
+    );
+    const HoldingsTable = ({ holdings, onTrade, onBuyNewAsset }) => (
+        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto"><h2 className="text-xl font-semibold mb-4">My Holdings</h2><table className="w-full text-left"><thead><tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"><th className="p-2">Asset</th><th className="p-2 text-right">Amount</th><th className="p-2 text-right">Avg. Buy Price</th><th className="p-2 text-right">Bought Value</th><th className="p-2 text-right">Current Value</th><th className="p-2 text-right">P/L</th><th className="p-2 text-center">Actions</th></tr></thead>
+            <tbody>{holdings.length > 0 ? holdings.map(({ coin, amount, avgBuyPrice, boughtValue, currentValue, pnl, pnlPercentage }) => (
+                    <tr key={coin.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700">
+                        <td className="p-2 flex items-center"><img src={coin.image} alt={coin.name} className="w-6 h-6 mr-2" />{coin.name} <span className="text-gray-500 dark:text-gray-400 ml-1">{coin.symbol.toUpperCase()}</span></td>
+                        <td className="p-2 text-right">{amount.toFixed(6)}</td><td className="p-2 text-right">${avgBuyPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td><td className="p-2 text-right">${boughtValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2 text-right">${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className={`p-2 text-right font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}`}><div>{pnl >= 0 ? '+' : '-'}${Math.abs(pnl).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div><div className="text-xs font-normal">({pnlPercentage > 0 ? '+' : ''}{pnlPercentage.toFixed(2)}%)</div></td>
+                        <td className="p-2 text-center space-x-2"><button onClick={() => onTrade(coin, 'buy')} className="bg-success text-white px-3 py-1 rounded-md text-sm hover:bg-green-500">Buy</button><button onClick={() => onTrade(coin, 'sell')} className="bg-danger text-white px-3 py-1 rounded-md text-sm hover:bg-red-500">Sell</button></td>
+                    </tr>)) : (<tr><td colSpan={7} className="text-center p-8"><p className="text-gray-500 dark:text-gray-500 mb-4">Your portfolio is empty. Make your first trade to get started!</p><button onClick={onBuyNewAsset} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition-colors"><i className="fas fa-plus mr-2"></i>Buy New Asset</button></td></tr>)}</tbody></table></div>
+    );
+    const LimitOrdersSection = ({ orders, onCancel }) => {
+        const [activeTab, setActiveTab] = React.useState('open'); // 'open' or 'history'
+        const openOrders = React.useMemo(() => orders.filter(o => o.status === 'open'), [orders]);
+        const historyOrders = React.useMemo(() => orders.filter(o => o.status === 'filled' || o.status === 'cancelled').sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [orders]);
+        const ordersToDisplay = activeTab === 'open' ? openOrders : historyOrders;
+        const StatusBadge = ({ status }) => {
+            const styles = {
+                open: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 capitalize',
+                filled: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 capitalize',
+                cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 capitalize',
+            };
+            return <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${styles[status]}`}>{status}</span>;
+        };
+        const TabButton = ({ tab, label, count }) => (
+            <button onClick={() => setActiveTab(tab)} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab ? 'bg-primary text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
+                {label} <span className="ml-1 px-2 py-0.5 bg-gray-300 dark:bg-gray-600 rounded-full text-xs">{count}</span>
+            </button>
+        );
+        return (
+            <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto mt-6">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center mb-4 gap-3">
+                    <h2 className="text-xl font-semibold">Limit Orders</h2>
+                    <div className="flex space-x-2 p-1 bg-gray-200 dark:bg-gray-900/50 rounded-lg">
+                        <TabButton tab="open" label="Open" count={openOrders.length} />
+                        <TabButton tab="history" label="History" count={historyOrders.length} />
+                    </div>
+                </div>
+                {ordersToDisplay.length > 0 ? (
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
+                                <th className="p-2">Asset</th>
+                                <th className="p-2">Type</th>
+                                <th className="p-2 text-right">Amount</th>
+                                <th className="p-2 text-right">Limit Price</th>
+                                <th className="p-2 text-center">Status</th>
+                                <th className="p-2">Date</th>
+                                <th className="p-2 text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {ordersToDisplay.map(order => (
+                                <tr key={order.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm">
+                                    <td className="p-2 flex items-center"><img src={order.coin.image} alt={order.coin.name} className="w-6 h-6 mr-2" />{order.coin.name}</td>
+                                    <td className={`p-2 font-semibold capitalize ${order.type === 'buy' ? 'text-success' : 'text-danger'}`}>{order.type}</td>
+                                    <td className="p-2 text-right">{order.amount.toFixed(6)}</td>
+                                    <td className="p-2 text-right">${order.limitPrice.toLocaleString()}</td>
+                                    <td className="p-2 text-center"><StatusBadge status={order.status} /></td>
+                                    <td className="p-2 text-gray-500 dark:text-gray-400">{new Date(order.createdAt).toLocaleString()}</td>
+                                    <td className="p-2 text-center" style={{width: '80px'}}>
+                                        {order.status === 'open' && (
+                                            <button onClick={() => onCancel(order.id)} className="bg-gray-500 text-white px-3 py-1 rounded-md text-xs hover:bg-gray-600">Cancel</button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                ) : (
+                    <div className="text-center p-6 text-gray-500 dark:text-gray-500">
+                        {activeTab === 'open' ? 'You have no open limit orders.' : 'You have no limit order history.'}
+                    </div>
+                )}
+            </div>
+        );
+    };
+    const AIInsight = () => { const { portfolio } = usePortfolio(); const [insight, setInsight] = React.useState(null); const [loading, setLoading] = React.useState(false); const handleGetInsight = async () => { setLoading(true); setInsight(null); const result = await getPortfolioAnalysis(portfolio); setInsight(result); setLoading(false); }; const InsightItem = ({ icon, title, content, colorClass }) => (<div className="flex items-start space-x-4"><div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${colorClass}`}><i className={`fas ${icon} text-white text-xl`}></i></div><div><h4 className="font-semibold text-gray-800 dark:text-gray-200">{title}</h4><p className="text-gray-600 dark:text-gray-400 text-sm">{content}</p></div></div>); return (
+        <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg mt-6"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-semibold text-primary"><i className="fas fa-brain mr-2"></i>AI Portfolio Insight</h2><button onClick={handleGetInsight} disabled={loading} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-500 disabled:bg-gray-600 flex items-center"><i className={`fas fa-sync mr-2 ${loading ? 'animate-spin' : ''}`}></i>{loading ? 'Analyzing...' : 'Get Insight'}</button></div>{loading && (<div className="text-center p-4"><i className="fas fa-spinner fa-spin text-2xl text-primary"></i><p className="mt-2 text-gray-500 dark:text-gray-400">The AI is analyzing your portfolio...</p></div>)}{insight && (<div className="space-y-6"><div className="bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg"><h3 className="font-semibold text-lg mb-2 text-gray-900 dark:text-white">Overall Assessment</h3><p className="text-gray-700 dark:text-gray-300 italic">"{insight.overallAssessment}"</p></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><InsightItem icon="fa-shield-alt" title={`Risk Analysis (Score: ${insight.riskScore}/10)`} content={insight.riskAnalysis} colorClass="bg-danger/80" /><InsightItem icon="fa-cubes" title="Diversification Suggestion" content={insight.diversification} colorClass="bg-secondary/80" /><InsightItem icon="fa-balance-scale" title="Rebalancing Opportunities" content={insight.rebalancingOpportunities} colorClass="bg-yellow-500/80" /><InsightItem icon="fa-check-circle" title="Positive Note" content={insight.positiveNote} colorClass="bg-success/80" /></div></div>)}{!loading && !insight && (<div className="text-center text-gray-500 dark:text-gray-500 p-4"><p>Click "Get Insight" for a detailed AI-powered analysis of your portfolio.</p></div>)}</div>
+    );};
+    const TransactionHistoryTable = ({ transactions }) => { const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' }); const sortedTransactions = React.useMemo(() => { const sortableItems = [...transactions]; if (sortConfig.key) { sortableItems.sort((a, b) => { let comparison = 0; if (sortConfig.key === 'date') { comparison = new Date(a.date).getTime() - new Date(b.date).getTime(); } else if (sortConfig.key === 'pnl') { const isASell = a.type === 'sell'; const isBSell = b.type === 'sell'; if (isASell && !isBSell) return -1; if (!isASell && isBSell) return 1; if (!isASell && !isBSell) return 0; comparison = (a.pnl ?? 0) - (b.pnl ?? 0); } else { comparison = a.type.localeCompare(b.type); } return sortConfig.direction === 'asc' ? comparison : -comparison; }); } return sortableItems; }, [transactions, sortConfig]); const handleSort = (key) => { setSortConfig(prevConfig => ({ key, direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc', })); }; const getSortIcon = (key) => { if (sortConfig.key !== key) { return <i className="fas fa-sort text-gray-400/50 ml-2"></i>; } return sortConfig.direction === 'asc' ? <i className="fas fa-sort-up text-primary ml-2"></i> : <i className="fas fa-sort-down text-primary ml-2"></i>; }; const totalRealizedPnl = React.useMemo(() => { return transactions.reduce((acc, tx) => acc + (tx.pnl ?? 0), 0); }, [transactions]); const SortableHeader = ({ sortKey, children }) => ( <th className="p-2"><button onClick={() => handleSort(sortKey)} className="flex items-center hover:text-gray-900 dark:hover:text-gray-100 transition-colors">{children}{getSortIcon(sortKey)}</button></th> ); return (
+        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mt-6 overflow-x-auto"><h2 className="text-xl font-semibold mb-4">Transaction History</h2>{transactions.length > 0 ? (<table className="w-full text-left"><thead><tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-sm"><SortableHeader sortKey="type">Type</SortableHeader><th className="p-2">Asset</th><th className="p-2">Price</th><th className="p-2">Amount</th><th className="p-2">Buy Value</th><th className="p-2">Sell Value</th><th className="p-2">Difference</th><SortableHeader sortKey="pnl">P/L</SortableHeader><SortableHeader sortKey="date">Date</SortableHeader></tr></thead><tbody>{sortedTransactions.map((tx) => { const isBuy = tx.type === 'buy'; const pnl = tx.pnl ?? 0; const isPnlPositive = pnl >= 0; const buyValue = isBuy ? tx.total : tx.total - pnl; return (
+            <tr key={tx.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"><td className="p-2"><span className={`font-bold ${isBuy ? 'text-success' : 'text-danger'}`}>{tx.type.toUpperCase()}</span></td><td className="p-2 flex items-center"><img src={tx.coin.image} alt={tx.coin.name} className="w-5 h-5 mr-2" />{tx.coin.name}</td><td className="p-2">${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">{tx.amount.toFixed(6)} {tx.coin.symbol.toUpperCase()}</td>{isBuy ? (<><td className="p-2">${tx.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2 text-center text-gray-500">-</td><td className="p-2 text-center text-gray-500">-</td><td className="p-2 text-center text-gray-500">-</td></>) : (<><td className="p-2">${buyValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">${tx.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className={`p-2 font-semibold ${isPnlPositive ? 'text-success' : 'text-danger'}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className={`p-2 font-semibold ${isPnlPositive ? 'text-success' : 'text-danger'}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></>)}<td className="p-2 text-gray-500 dark:text-gray-400">{new Date(tx.date).toLocaleString()}</td></tr>);})}</tbody><tfoot><tr className="border-t-2 border-gray-300 dark:border-gray-600 font-bold"><td colSpan={7} className="p-2 text-right text-base">Total Realized P/L</td><td colSpan={2} className={`p-2 text-base ${totalRealizedPnl >= 0 ? 'text-success' : 'text-danger'}`}>${totalRealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot></table>) : (<div className="text-center p-8"><p className="text-gray-500">You have no transaction history yet.</p></div>)}</div>
+    );};
+    return (
+        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Portfolio</h1><PortfolioHeader {...portfolioData} /><PortfolioChart transactions={portfolio.transactions} initialBalance={portfolio.initialBalance} /><div className="flex justify-between items-center"><h2 className="text-2xl font-semibold">Assets</h2><div className="flex items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-lg"><span className="text-gray-500 dark:text-gray-400 mr-2">Cash Balance:</span><span className="font-bold text-lg">${portfolio.usdtBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div></div><HoldingsTable holdings={portfolioData.holdings} onTrade={handleTradeClick} onBuyNewAsset={handleBuyNewAsset} /><LimitOrdersSection orders={portfolio.limitOrders} onCancel={cancelLimitOrder} /><AIInsight /><TransactionHistoryTable transactions={portfolio.transactions} />{isTradeModalOpen && selectedCoin && (<TradeModal coin={selectedCoin} tradeType={tradeType} onClose={() => setTradeModalOpen(false)} />)}{isBuyModalOpen && (<BuyAssetModal onClose={() => setBuyModalOpen(false)} />)}</div>
+    );
+};
+
+const Recommendations = () => {
+    const { coins } = useDApp();
+    const [recommendations, setRecommendations] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
+    const hasFetchedOnMount = React.useRef(false);
+    const fetchRecommendations = React.useCallback(async (isManualRefresh = false) => {
+        if (coins.length === 0) { if (!isManualRefresh) return; setError("Market data is still loading. Please wait a moment and try again."); return; }
+        setLoading(true); setError(null);
+        try { const fearAndGreed = await getFearAndGreedIndex(); const result = await getAIRecommendations(coins, fearAndGreed.value); setRecommendations(result);
+        } catch (err) { console.error("Failed to fetch recommendations:", err); setError("Could not generate AI recommendations. Displaying cached data. Please try again later."); const result = await getAIRecommendations(coins, 50); setRecommendations(result);
+        } finally { setLoading(false); }
+    }, [coins]);
+    React.useEffect(() => { if (coins.length > 0 && !hasFetchedOnMount.current) { fetchRecommendations(false); hasFetchedOnMount.current = true; } }, [coins, fetchRecommendations]);
+    const ScoreBreakdownDisplay = ({ breakdown }) => (
+        <div className="w-full mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg"><h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Score Breakdown</h4><ul className="text-sm space-y-2 text-gray-600 dark:text-gray-400"><li className="flex justify-between items-center"><span><i className="fas fa-chart-line mr-2 text-blue-400"></i>Market Trend (35%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.trend}/35</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-comments mr-2 text-purple-400"></i>Sentiment (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.sentiment}/20</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-microchip mr-2 text-green-400"></i>Fundamentals (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.fundamentals}/20</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-laptop-code mr-2 text-indigo-400"></i>Technology &amp; Innovation (15%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.technology}/15</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-tachometer-alt mr-2 text-yellow-400"></i>Market Mood (10%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.mood}/10</strong></li></ul></div>
+    );
+    const RecommendationCard = ({ recommendation }) => {
+        const { coins } = useDApp(); const coinData = coins.find(c => c.id === recommendation.coinId);
+        const getScoreColor = (score) => { if (score > 75) return 'text-success'; if (score > 50) return 'text-yellow-400'; return 'text-danger'; };
+        const getRecommendationColor = (rec) => { if (rec.includes('Buy')) return 'bg-success'; if (rec.includes('Hold')) return 'bg-yellow-500'; return 'bg-danger'; }
+        return (<div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg shadow-lg"><div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">{coinData && <img src={coinData.image} alt={coinData.name} className="w-16 h-16"/>}<div className="flex-1 text-center md:text-left"><h3 className="text-2xl font-bold">{recommendation.coinName}</h3><p className="text-gray-600 dark:text-gray-400 mt-1">{recommendation.reasoning}</p></div><div className="flex items-center space-x-6"><div className="text-center"><p className="text-gray-500 dark:text-gray-400 text-sm">Score</p><p className={`text-5xl font-bold ${getScoreColor(recommendation.score)}`}>{recommendation.score}</p></div><div className={`${getRecommendationColor(recommendation.recommendation)} text-white font-bold py-2 px-4 rounded-md text-center`}>{recommendation.recommendation}</div></div></div>{recommendation.scoreBreakdown && <ScoreBreakdownDisplay breakdown={recommendation.scoreBreakdown} />}</div>);
+    };
+    return (
+        <div className="space-y-6"><div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">AI Recommendations</h1><button onClick={() => fetchRecommendations(true)} disabled={loading} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-500 disabled:bg-gray-600 flex items-center"><i className={`fas fa-sync mr-2 ${loading ? 'animate-spin' : ''}`}></i>{loading ? 'Refreshing...' : 'Refresh'}</button></div><p className="text-gray-600 dark:text-gray-400">These recommendations are generated by AI for the top 10 coins by market cap based on a weighted analysis of market data. This is not financial advice.</p>{error && <div className="bg-red-100 border border-danger text-red-700 dark:bg-red-900 dark:text-red-200 px-4 py-3 rounded-md">{error}</div>}{loading && recommendations.length === 0 ? (<div className="text-center p-10"><i className="fas fa-spinner fa-spin text-4xl text-primary"></i><p className="mt-4">{coins.length === 0 ? 'Loading market data...' : 'Analyzing market data and generating AI recommendations...'}</p></div>) : (<div className="space-y-4">{recommendations.map(rec => (<RecommendationCard key={rec.coinId} recommendation={rec} />))}</div>)}</div>
+    );
+};
+
+const LearningCenter = () => {
+    const AccordionItem = ({ title, icon, children }) => { const [isOpen, setIsOpen] = React.useState(false); return (
+        <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md mb-3 overflow-hidden"><button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-5 text-left font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-expanded={isOpen}><span className="flex items-center"><i className={`fas ${icon} text-primary w-6 mr-4 text-xl`}></i><span className="text-lg">{title}</span></span><i className={`fas fa-chevron-down transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}></i></button><div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-screen' : 'max-h-0'}`} style={{ transitionProperty: 'max-height, padding' }}><div className={`p-5 pt-0 text-gray-600 dark:text-gray-300 space-y-3 leading-relaxed ${isOpen ? 'opacity-100' : 'opacity-0'}`}>{children}</div></div></div>
+    );};
+    return (
+        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">Learning Center</h1><p className="text-gray-600 dark:text-gray-400">Expand your knowledge with these key topics in cryptocurrency investing.</p><div><AccordionItem title="Crypto Basics" icon="fa-cubes"><p><strong>Cryptocurrency:</strong> A digital or virtual currency that uses cryptography for security. Unlike traditional currencies issued by governments (fiat currencies), cryptocurrencies are typically decentralized.</p><p><strong>Blockchain:</strong> A distributed database that is shared among the nodes of a computer network. It's the technology that enables the existence of cryptocurrency by maintaining a secure and decentralized record of transactions.</p><p><strong>Wallet:</strong> A digital wallet used to store, send, and receive cryptocurrencies. Wallets can be software-based (desktop, mobile, web) or hardware-based (physical devices).</p></AccordionItem><AccordionItem title="Understanding Order Types" icon="fa-exchange-alt"><p><strong>Market Order:</strong> This is the simplest type of trade. It's an order to buy or sell an asset immediately at the best available current price. It guarantees execution but not the price.</p><p><strong>Limit Order:</strong> An order to buy or sell an asset at a specific price or better. A buy limit order will only execute at the limit price or lower, and a sell limit order will only execute at the limit price or higher. This gives you control over the price but does not guarantee the order will be filled.</p></AccordionItem><AccordionItem title="Common Trading Strategies" icon="fa-chart-line"><p><strong>HODL (Hold On for Dear Life):</strong> A long-term strategy where investors buy a cryptocurrency and hold it for a long period, regardless of market fluctuations, with the belief that the price will increase over time.</p><p><strong>Day Trading:</strong> A short-term strategy involving multiple trades within a single day to profit from small price movements. It's high-risk and requires significant time and knowledge.</p><p><strong>Dollar-Cost Averaging (DCA):</strong> An investment strategy where you invest a fixed amount of money at regular intervals, regardless of the asset's price. This can help reduce the impact of volatility.</p></AccordionItem><AccordionItem title="Risks of Investing" icon="fa-exclamation-triangle"><p><strong>Volatility:</strong> Cryptocurrency prices can be extremely volatile, with large price swings in short periods. You could lose a significant portion of your investment quickly.</p><p><strong>Regulatory Risk:</strong> The legal and regulatory landscape for cryptocurrencies is still evolving. New regulations could impact the value and legality of certain assets.</p><p><strong>Security Risk:</strong> Exchanges can be hacked, and assets can be stolen. It's crucial to use strong security practices, such as two-factor authentication and secure wallets.</p></AccordionItem></div><div className="bg-red-50 dark:bg-red-900/50 border-l-4 border-danger text-red-800 dark:text-red-100 p-4 rounded-r-lg" role="alert"><p className="font-bold"><i className="fas fa-gavel mr-2"></i>Disclaimer</p><p>This application is for educational and entertainment purposes only. The information provided, including AI-generated content, does not constitute financial advice. Always do your own research (DYOR) and consult with a qualified financial advisor before making any investment decisions.</p></div></div>
+    );
+};
+
+const TradingViewWidget = React.memo(({ coinSymbol }) => {
+  const containerRef = React.useRef(null);
+  const { theme } = useTheme();
+  const containerId = 'tradingview_widget_container';
+  React.useEffect(() => {
+    if (!containerRef.current || typeof TradingView === 'undefined' || !coinSymbol) return;
+    containerRef.current.innerHTML = '';
+    new TradingView.widget({ autosize: true, symbol: `${coinSymbol.toUpperCase()}USD`, interval: 'D', timezone: 'Etc/UTC', theme: theme, style: '1', locale: 'en', enable_publishing: false, withdateranges: true, hide_side_toolbar: false, allow_symbol_change: true, studies: ["MovingAverage@tv-basicstudies", "MAExp@tv-basicstudies", "RSI@tv-basicstudies", "MACD@tv-basicstudies"], container_id: containerId, backgroundColor: theme === 'dark' ? '#1e1e1e' : '#f9fafb', gridColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)', });
+  }, [coinSymbol, theme]);
+  return <div id={containerId} ref={containerRef} className="relative" style={{ height: '450px' }} />;
+});
+
+const TrendPredictionCard = ({ prediction, loading, error }) => {
+    if (loading) return <div className="text-center p-4"><i className="fas fa-spinner fa-spin text-primary text-xl"></i><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Analyzing trend...</p></div>;
+    if (error || !prediction) return <div className="bg-red-50 dark:bg-red-900/20 border border-danger/50 text-danger p-4 rounded-lg flex items-center space-x-3"><i className="fas fa-exclamation-triangle text-xl"></i><div><h4 className="font-semibold">Prediction Failed</h4><p className="text-sm">{error || "Could not generate prediction data."}</p></div></div>;
+    const TrendIcon = ({ trend }) => { if (trend === 'Bullish') return <i className="fas fa-arrow-trend-up text-success text-3xl"></i>; if (trend === 'Bearish') return <i className="fas fa-arrow-trend-down text-danger text-3xl"></i>; return <i className="fas fa-minus text-gray-500 dark:text-gray-400 text-3xl"></i>; };
+    const ConfidenceBar = ({ confidence }) => { const getColor = (value) => { if (value > 75) return 'bg-success'; if (value > 50) return 'bg-yellow-400'; return 'bg-danger'; }; return <div><div className="flex justify-between items-center mb-1 text-sm"><span className="text-gray-500 dark:text-gray-400">Confidence</span><span className="font-semibold">{confidence}%</span></div><div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5"><div className={`${getColor(confidence)} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${confidence}%` }}></div></div></div>; };
+    return <div className="p-4 rounded-lg"><div className="flex items-center space-x-4 mb-4"><TrendIcon trend={prediction.trend} /><div><p className="text-2xl font-bold">Likely {prediction.trend}</p><p className="text-gray-500 dark:text-gray-400 text-sm">Short-term (7-day) forecast</p></div></div><ConfidenceBar confidence={prediction.confidence} /><p className="text-gray-600 dark:text-gray-300 mt-4 text-sm italic bg-gray-200 dark:bg-gray-700/50 p-3 rounded-md"><i className="fas fa-quote-left mr-2 opacity-50"></i>{prediction.analysis}</p></div>;
+};
+
+const FundamentalsCard = ({ data, loading, error }) => {
+    if (loading) return <div className="text-center p-4"><i className="fas fa-spinner fa-spin text-primary text-xl"></i><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading fundamentals...</p></div>;
+    if (error || !data) return <div className="bg-red-50 dark:bg-red-900/20 border border-danger/50 text-danger p-4 rounded-lg flex items-center space-x-3"><i className="fas fa-exclamation-triangle text-xl"></i><div><h4 className="font-semibold">Analysis Failed</h4><p className="text-sm">{error || 'Could not load fundamental data.'}</p></div></div>;
+    const AccordionItem = ({ title, children, icon }) => { const [isOpen, setIsOpen] = React.useState(false); return <div className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"><h2><button type="button" className="flex justify-between items-center w-full p-4 font-medium text-left text-gray-800 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}><div className="flex items-center"><i className={`fas ${icon} w-5 mr-3 text-primary`}></i><span>{title}</span></div><i className={`fas fa-chevron-down w-3 h-3 transform transition-transform ${isOpen ? 'rotate-180' : ''}`}></i></button></h2><div className={`transition-all duration-300 ease-in-out ${isOpen ? 'max-h-screen' : 'max-h-0 overflow-hidden'}`}><div className="p-4 pt-0 text-gray-600 dark:text-gray-400 text-sm leading-relaxed"><p>{children}</p></div></div></div>; };
+    return <div className="border border-gray-200 dark:border-gray-700 rounded-lg"><AccordionItem title="Project Background" icon="fa-info-circle">{data.background}</AccordionItem><AccordionItem title="Tokenomics" icon="fa-coins">{data.tokenomics}</AccordionItem><AccordionItem title="Team & Development" icon="fa-users">{data.team}</AccordionItem></div>;
+};
+
+const CreateAlertModal = ({ onClose, defaultCoinId }) => {
+  const { coins } = useDApp(); const { addAlert } = useAlerts();
+  const [coinId, setCoinId] = React.useState(defaultCoinId || '');
+  const [condition, setCondition] = React.useState('above');
+  const [targetPrice, setTargetPrice] = React.useState('');
+  const selectedCoin = React.useMemo(() => coins.find(c => c.id === coinId), [coinId, coins]);
+  const handleSubmit = (e) => {
+    e.preventDefault(); const price = parseFloat(targetPrice);
+    if (!coinId || isNaN(price) || price <= 0) { alert("Please fill out all fields with valid values."); return; }
+    addAlert({ coinId, condition, targetPrice: price }); onClose();
+  };
+  return <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"><div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md m-4"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold">Create Price Alert</h2><button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white text-2xl leading-none">&times;</button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label htmlFor="coin" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Cryptocurrency</label><select id="coin" value={coinId} onChange={(e) => setCoinId(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary"><option value="" disabled>-- Select a coin --</option>{coins.map(coin => (<option key={coin.id} value={coin.id}>{coin.name} ({coin.symbol.toUpperCase()})</option>))}</select></div>{selectedCoin && (<div className="bg-gray-100 dark:bg-gray-700/50 p-2 rounded-md text-center text-sm">Current Price: <span className="font-semibold text-gray-900 dark:text-white">${selectedCoin.current_price.toLocaleString()}</span></div>)}<div><label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Condition</label><div className="grid grid-cols-2 gap-2"><button type="button" onClick={() => setCondition('above')} className={`p-3 rounded-md text-center transition-colors ${condition === 'above' ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}><i className="fas fa-arrow-up mr-2"></i>Price is Above</button><button type="button" onClick={() => setCondition('below')} className={`p-3 rounded-md text-center transition-colors ${condition === 'below' ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}><i className="fas fa-arrow-down mr-2"></i>Price is Below</button></div></div><div><label htmlFor="targetPrice" className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Target Price (USD)</label><div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span><input type="text" id="targetPrice" value={targetPrice} onChange={(e) => /^\d*\.?\d*$/.test(e.target.value) && setTargetPrice(e.target.value)} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 pl-6 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="e.g., 70000" /></div></div><button type="submit" className="w-full p-3 rounded-md font-bold text-white transition-colors bg-success hover:bg-green-500 disabled:bg-gray-600" disabled={!coinId || !targetPrice}>Create Alert</button></form></div></div>;
+};
+
+const CoinResearch = ({ coin, setActivePage }) => {
+    const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+    const [isAnimating, setIsAnimating] = React.useState(false);
+    const [news, setNews] = React.useState([]); const [loadingNews, setLoadingNews] = React.useState(true); const [newsError, setNewsError] = React.useState(null);
+    const [trendPrediction, setTrendPrediction] = React.useState(null); const [predictionLoading, setPredictionLoading] = React.useState(true); const [predictionError, setPredictionError] = React.useState(null);
+    const [fundamentals, setFundamentals] = React.useState(null); const [loadingFundamentals, setLoadingFundamentals] = React.useState(true); const [fundamentalsError, setFundamentalsError] = React.useState(null);
+    const [coinDetails, setCoinDetails] = React.useState(null); const [loadingDetails, setLoadingDetails] = React.useState(true); const [detailsError, setDetailsError] = React.useState(null);
+    const [isAlertModalOpen, setAlertModalOpen] = React.useState(false);
+    const isFav = isFavorite(coin.id);
+    const handleFavoriteToggle = () => { if (isAnimating) return; if (!isFav) { setIsAnimating(true); setTimeout(() => setIsAnimating(false), 400); } if (isFav) removeFavorite(coin.id); else addFavorite(coin.id); };
+    React.useEffect(() => {
+        const fetchAllCoinData = async () => {
+            setLoadingNews(true); setPredictionLoading(true); setLoadingFundamentals(true); setLoadingDetails(true);
+            setNewsError(null); setPredictionError(null); setFundamentalsError(null); setDetailsError(null);
+            getCoinNews(coin.symbol).then(setNews).catch(err => { setNewsError("Could not load news articles."); }).finally(() => setLoadingNews(false));
+            getCoinMarketChart(coin.id).then(marketData => { if (marketData && marketData.prices.length > 0) return getTrendPrediction(coin.name, marketData.prices); throw new Error("No historical data available."); }).then(setTrendPrediction).catch(err => { setPredictionError(`Could not generate AI prediction.`); }).finally(() => setPredictionLoading(false));
+            getFundamentalData(coin.symbol).then(setFundamentals).catch(err => { setFundamentalsError("Could not load fundamental data."); }).finally(() => setLoadingFundamentals(false));
+            getCoinDetails(coin.id).then(setCoinDetails).catch(err => { setDetailsError("Could not load additional coin details."); }).finally(() => setLoadingDetails(false));
+        };
+        fetchAllCoinData();
+    }, [coin]);
+    const StatCard = ({ label, value }) => (<div className="bg-gray-200 dark:bg-gray-700/60 p-3 rounded-lg text-center"><h4 className="text-sm text-gray-500 dark:text-gray-400 font-medium">{label}</h4><p className="text-lg font-semibold">{value}</p></div>);
+    const AccordionItem = ({ title, icon, children, defaultOpen = false }) => { const [isOpen, setIsOpen] = React.useState(defaultOpen); return <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md mb-3 overflow-hidden"><button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-5 text-left font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-expanded={isOpen}><span className="flex items-center"><i className={`fas ${icon} text-primary w-6 mr-4 text-xl`}></i><span className="text-lg">{title}</span></span><i className={`fas fa-chevron-down transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}></i></button><div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-[2000px]' : 'max-h-0'}`} style={{ transitionProperty: 'max-height' }}><div className={`p-5 pt-0 text-gray-600 dark:text-gray-300 space-y-4 leading-relaxed`}>{children}</div></div></div> };
+    const StatDisplay = ({ icon, label, value }) => (<div className="bg-gray-200 dark:bg-gray-700 p-3 rounded-lg"><div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-1"><i className={`${icon} w-4 mr-2`}></i><span>{label}</span></div><p className="text-lg font-bold text-gray-900 dark:text-white">{typeof value === 'number' ? value.toLocaleString() : value}</p></div>);
+    const LinkButton = ({ icon, url, text }) => { if (!url) return null; return <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center p-2 rounded-md bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"><i className={`${icon} w-5 mr-3 text-primary`}></i><span className="text-sm font-medium">{text}</span><i className="fas fa-external-link-alt text-xs text-gray-400 dark:text-gray-500 ml-auto"></i></a>; };
+    const ErrorDisplay = ({ title, message }) => (<div className="bg-red-50 dark:bg-red-900/20 border border-danger/50 text-danger p-4 rounded-lg flex items-center space-x-3 my-4"><i className="fas fa-exclamation-triangle text-xl"></i><div><h4 className="font-semibold">{title}</h4><p className="text-sm">{message}</p></div></div>);
+    return (<div className="space-y-6"><div className="flex justify-between items-start"><div><div className="flex items-center space-x-4 mb-2"><img src={coin.image} alt={coin.name} className="w-12 h-12" /><div className="flex items-center gap-3"><div><h1 className="text-3xl font-bold text-gray-900 dark:text-white">{coin.name}</h1><p className="text-lg text-gray-500 dark:text-gray-400">{coin.symbol.toUpperCase()}</p></div><div className="flex items-center"><button onClick={handleFavoriteToggle} className={`text-2xl p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors ${isFav ? 'text-yellow-400' : 'text-gray-400 dark:text-gray-500'}`} aria-label={isFav ? `Remove ${coin.name} from favs` : `Add ${coin.name} to favs`}><i className={`${isFav ? 'fas' : 'far'} fa-star ${isAnimating ? 'animate-favorite-pop' : ''}`}></i></button><button onClick={() => setAlertModalOpen(true)} className="text-2xl p-2 rounded-full text-gray-400 dark:text-gray-500 hover:text-primary hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-label={`Set price alert for ${coin.name}`}><i className="fas fa-bell"></i></button></div></div></div></div><button onClick={() => setActivePage('Dashboard')} className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors"><i className="fas fa-arrow-left mr-2"></i>Back</button></div><div className="space-y-3"><AccordionItem title="Overview & Chart" icon="fa-chart-bar" defaultOpen={true}><div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4"><StatCard label="Price" value={`$${coin.current_price.toLocaleString()}`} /><StatCard label="24h Change" value={`${coin.price_change_percentage_24h.toFixed(2)}%`} /><StatCard label="Market Cap" value={`$${(coin.market_cap / 1e9).toFixed(2)}B`} /><StatCard label="Volume" value={`$${(coin.total_volume / 1e6).toFixed(2)}M`} /><StatCard label="All-Time High" value={`$${coin.ath.toLocaleString()}`} /><StatCard label="From ATH" value={`${coin.ath_change_percentage.toFixed(2)}%`} /></div>{loadingDetails ? <p>Loading description...</p> : detailsError ? <ErrorDisplay title="Could not load details" message={detailsError} /> : (<div className="text-sm text-gray-600 dark:text-gray-400 my-4 prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: coinDetails?.description?.split('. ')[0] + '.' || 'No description.' }}></div>)}<div className="h-[450px]"><TradingViewWidget coinSymbol={coin.symbol} /></div></AccordionItem><AccordionItem title="AI Trend Prediction" icon="fa-brain"><TrendPredictionCard prediction={trendPrediction} loading={predictionLoading} error={predictionError} /></AccordionItem><AccordionItem title="Fundamental Analysis" icon="fa-book-reader"><FundamentalsCard data={fundamentals} loading={loadingFundamentals} error={fundamentalsError} /></AccordionItem><AccordionItem title="Community & Developer Activity" icon="fa-satellite-dish">{loadingDetails ? <p>Loading details...</p> : detailsError ? <ErrorDisplay title="Could not load community data" message={detailsError} /> : !coinDetails ? <p>No data.</p> : (<div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div><h3 className="text-lg font-semibold mb-3 flex items-center"><i className="fas fa-users mr-2 text-secondary"></i>Community</h3><div className="grid grid-cols-2 gap-3 mb-4"><StatDisplay icon="fab fa-twitter" label="Twitter Followers" value={coinDetails.communityStats.twitterFollowers} /><StatDisplay icon="fab fa-reddit-alien" label="Reddit Subscribers" value={coinDetails.communityStats.redditSubscribers} /></div><div className="space-y-2"><LinkButton icon="fas fa-home" url={coinDetails.links.homepage} text="Homepage" /><LinkButton icon="fas fa-cube" url={coinDetails.links.explorer} text="Explorer" /><LinkButton icon="fab fa-twitter" url={coinDetails.links.twitter} text="Twitter" /><LinkButton icon="fab fa-reddit-alien" url={coinDetails.links.reddit} text="Reddit" /></div></div><div><h3 className="text-lg font-semibold mb-3 flex items-center"><i className="fas fa-code-branch mr-2 text-secondary"></i>Developer Activity</h3><div className="grid grid-cols-2 gap-3 mb-4"><StatDisplay icon="fas fa-star" label="GitHub Stars" value={coinDetails.devStats.stars} /><StatDisplay icon="fas fa-code-branch" label="Forks" value={coinDetails.devStats.forks} /><StatDisplay icon="fas fa-users" label="Subscribers" value={coinDetails.devStats.subscribers} /><StatDisplay icon="fas fa-history" label="Commits (4w)" value={coinDetails.devStats.commits4w} /></div><div className="space-y-2"><LinkButton icon="fab fa-github" url={coinDetails.links.github} text="Main Repository" /></div></div></div>)}</AccordionItem><AccordionItem title="Latest News" icon="fa-newspaper">{loadingNews ? <p>Loading news...</p> : newsError ? <ErrorDisplay title="Could not load news" message={newsError} /> : (<div className="space-y-4">{news.length > 0 ? (news.map(article => <NewsCard key={article.id} article={article} />)) : (<p className="text-gray-500">No recent news found for {coin.name}.</p>)}</div>)}</AccordionItem></div>{isAlertModalOpen && (<CreateAlertModal defaultCoinId={coin.id} onClose={() => setAlertModalOpen(false)} />)}</div>);
+};
+
+const Compare = ({ onCoinSelect }) => {
+    const { coins } = useDApp(); const [selectedCoinIds, setSelectedCoinIds] = React.useState([]); const [searchTerm, setSearchTerm] = React.useState(''); const MAX_SELECTION = 3;
+    const handleSelectCoin = (coinId) => { setSelectedCoinIds(prev => { if (prev.includes(coinId)) return prev.filter(id => id !== coinId); if (prev.length < MAX_SELECTION) return [...prev, coinId]; return prev; }); };
+    const selectedCoins = React.useMemo(() => { const coinMap = new Map(coins.map(c => [c.id, c])); return selectedCoinIds.map(id => coinMap.get(id)).filter((c) => c !== undefined); }, [selectedCoinIds, coins]);
+    const filteredCoinsForSelection = React.useMemo(() => { if (!searchTerm) return coins; return coins.filter(coin => coin.name.toLowerCase().includes(searchTerm.toLowerCase()) || coin.symbol.toLowerCase().includes(searchTerm.toLowerCase())); }, [coins, searchTerm]);
+    const isSelectionDisabled = selectedCoinIds.length >= MAX_SELECTION;
+    const CoinSelectorCard = ({ coin, isSelected, onSelect, isDisabled }) => (<button onClick={() => onSelect(coin.id)} disabled={isDisabled && !isSelected} className={`flex flex-col items-center justify-center text-center p-3 bg-white dark:bg-gray-700 rounded-lg transition-all duration-200 border-2 ${isSelected ? 'border-primary bg-gray-100 dark:bg-gray-600' : 'border-transparent hover:bg-gray-100 dark:hover:bg-gray-600'} ${isDisabled && !isSelected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}><img src={coin.image} alt={coin.name} className="w-8 h-8 mb-2" /><span className="text-sm font-semibold">{coin.name}</span><span className="text-xs text-gray-500 dark:text-gray-400">{coin.symbol.toUpperCase()}</span></button>);
+    const AIComparison = ({ coins }) => { const [comparison, setComparison] = React.useState(''); const [loading, setLoading] = React.useState(true); React.useEffect(() => { const fetchComparison = async () => { setLoading(true); const result = await getAIComparison(coins); setComparison(result); setLoading(false); }; if (coins.length >= 2) { fetchComparison(); } }, [coins]); return (<div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow-lg mt-6"><h3 className="text-xl font-semibold text-primary mb-2"><i className="fas fa-brain mr-2"></i>AI-Powered Comparison</h3>{loading ? (<p className="text-gray-600 dark:text-gray-300">Generating AI analysis...</p>) : (<p className="text-gray-600 dark:text-gray-300 leading-relaxed">{comparison}</p>)}</div>); };
+    const renderComparisonTable = () => (<div className="mt-6 bg-gray-100 dark:bg-gray-800 p-4 rounded-lg overflow-x-auto"><table className="w-full text-left"><thead><tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"><th className="p-3">Metric</th>{selectedCoins.map(coin => (<th key={coin.id} className="p-3 text-center"><div className="flex flex-col items-center"><img src={coin.image} alt={coin.name} className="w-8 h-8 mb-1"/>{coin.name}</div></th>))}</tr></thead><tbody><tr className="border-b border-gray-200 dark:border-gray-700"><td className="p-3 font-semibold">Price</td>{selectedCoins.map(c => <td key={c.id} className="p-3 text-center font-mono">${c.current_price.toLocaleString()}</td>)}</tr><tr className="border-b border-gray-200 dark:border-gray-700"><td className="p-3 font-semibold">24h Change</td>{selectedCoins.map(c => (<td key={c.id} className={`p-3 text-center font-mono ${c.price_change_percentage_24h >= 0 ? 'text-success' : 'text-danger'}`}>{c.price_change_percentage_24h.toFixed(2)}%</td>))}</tr><tr className="border-b border-gray-200 dark:border-gray-700"><td className="p-3 font-semibold">Market Cap</td>{selectedCoins.map(c => <td key={c.id} className="p-3 text-center font-mono">${c.market_cap.toLocaleString()}</td>)}</tr><tr className="border-b border-gray-200 dark:border-gray-700 last:border-b-0"><td className="p-3 font-semibold">24h Volume</td>{selectedCoins.map(c => <td key={c.id} className="p-3 text-center font-mono">${c.total_volume.toLocaleString()}</td>)}</tr><tr className="bg-gray-200/50 dark:bg-gray-700/50"><td className="p-3 font-semibold"></td>{selectedCoins.map(c => (<td key={c.id} className="p-3 text-center"><button onClick={() => onCoinSelect(c)} className="bg-secondary text-white text-sm font-bold py-1 px-3 rounded-md hover:bg-purple-500 transition-colors">View Details</button></td>))}</tr></tbody></table></div>);
+    return (<div className="space-y-6"><div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">Coin Comparison</h1>{selectedCoinIds.length > 0 && (<button onClick={() => setSelectedCoinIds([])} className="bg-danger text-white px-4 py-2 rounded-md hover:bg-red-500">Clear Selection</button>)}</div><div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg"><div className="flex flex-col sm:flex-row justify-between sm:items-center mb-3 gap-3"><h2 className="text-xl font-semibold">Select up to {MAX_SELECTION} coins to compare</h2><div className="relative w-full sm:w-auto sm:max-w-xs"><input type="text" placeholder="Search to add coins..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-white p-2 pl-8 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary"/><i className="fas fa-search absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i></div></div>{filteredCoinsForSelection.length > 0 ? (<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">{filteredCoinsForSelection.map(coin => (<CoinSelectorCard key={coin.id} coin={coin} isSelected={selectedCoinIds.includes(coin.id)} onSelect={handleSelectCoin} isDisabled={isSelectionDisabled}/>))}</div>) : (<div className="text-center py-6 text-gray-500 dark:text-gray-400"><p>No coins found for "{searchTerm}".</p></div>)}</div>{selectedCoins.length >= 2 ? (<>{renderComparisonTable()}<AIComparison coins={selectedCoins} /></>) : (<div className="text-center py-10 bg-gray-100 dark:bg-gray-800 rounded-lg"><i className="fas fa-info-circle text-3xl text-gray-400 dark:text-gray-500 mb-3"></i><p className="text-gray-500 dark:text-gray-400">Please select at least two coins to start the comparison.</p></div>)}</div>);
+};
+
+const NotificationCenter = () => {
+  const { notifications, removeNotification } = useNotifications();
+  const NOTIFICATION_TIMEOUT = 7000;
+  const getNotificationDetails = (type) => { switch (type) { case 'alert': return { icon: 'fa-bell', color: 'bg-secondary', title: 'Price Alert Triggered!' }; case 'info': return { icon: 'fa-info-circle', color: 'bg-primary', title: 'Order Update' }; case 'error': default: return { icon: 'fa-exclamation-circle', color: 'bg-danger', title: 'Error' }; } };
+  const NotificationToast = ({ notification, onRemove }) => {
+    React.useEffect(() => { const timer = setTimeout(() => { onRemove(notification.id); }, NOTIFICATION_TIMEOUT); return () => clearTimeout(timer); }, [notification.id, onRemove]);
+    const { icon, color, title } = getNotificationDetails(notification.type);
+    const borderColor = notification.type === 'alert' ? 'border-secondary' : 'border-primary';
+    return (<div className={`bg-white dark:bg-gray-800 rounded-lg shadow-2xl p-4 w-80 animate-fade-in-right border-l-4 ${borderColor}`}><div className="flex items-start"><div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mr-3 ${color}`}><i className={`fas ${icon} text-white`}></i></div><div className="flex-1"><p className="font-semibold text-gray-900 dark:text-white">{title}</p><p className="text-sm text-gray-600 dark:text-gray-300">{notification.message}</p></div><button onClick={() => onRemove(notification.id)} className="ml-2 text-gray-400 dark:text-gray-500 hover:text-gray-800 dark:hover:text-white">&times;</button></div></div>);
+  };
+  const styles = document.createElement('style'); styles.innerHTML = `@keyframes fadeInRight { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } } .animate-fade-in-right { animation: fadeInRight 0.5s ease-out forwards; }`; document.head.appendChild(styles);
+  return (<div className="fixed top-5 right-5 z-50 space-y-3">{notifications.map(notification => (<NotificationToast key={notification.id} notification={notification} onRemove={removeNotification} />))}</div>);
+};
+
+const AlertsPage = () => {
+    const { alerts, removeAlert } = useAlerts(); const { coins } = useDApp(); const [isModalOpen, setModalOpen] = React.useState(false);
+    const coinMap = React.useMemo(() => new Map(coins.map(c => [c.id, c])), [coins]);
+    const activeAlerts = alerts.filter(a => a.status === 'active');
+    const triggeredAlerts = alerts.filter(a => a.status === 'triggered');
+    const AlertItem = ({ alert, coin, onRemove }) => { const conditionText = alert.condition === 'above' ? 'is above' : 'is below'; const isTriggered = alert.status === 'triggered'; return (<div className={`bg-white dark:bg-gray-700 p-4 rounded-lg flex items-center justify-between transition-opacity ${isTriggered ? 'opacity-60' : ''}`}><div className="flex items-center space-x-4">{coin ? <img src={coin.image} alt={coin.name} className="w-10 h-10" /> : <div className="w-10 h-10 bg-gray-200 dark:bg-gray-600 rounded-full"></div>}<div><h4 className="font-bold text-lg">{coin?.name || alert.coinId}</h4><p className="text-sm text-gray-600 dark:text-gray-300">Notify when price <span className="font-semibold text-primary">{conditionText}</span> ${alert.targetPrice.toLocaleString()}</p></div></div><div className="flex items-center space-x-4">{isTriggered && (<span className="text-sm font-semibold bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-success px-3 py-1 rounded-full"><i className="fas fa-check-circle mr-2"></i>Triggered</span>)}<button onClick={() => onRemove(alert.id)} className="text-gray-500 dark:text-gray-400 hover:text-danger transition-colors" aria-label="Delete alert"><i className="fas fa-trash"></i></button></div></div>); };
+    return (<div className="space-y-6"><div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">Price Alerts</h1><button onClick={() => setModalOpen(true)} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition-colors"><i className="fas fa-plus mr-2"></i>Create New Alert</button></div><div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow-lg"><h2 className="text-xl font-semibold mb-4 text-secondary"><i className="fas fa-hourglass-half mr-2"></i>Active Alerts ({activeAlerts.length})</h2>{activeAlerts.length > 0 ? (<div className="space-y-3">{activeAlerts.map(alert => (<AlertItem key={alert.id} alert={alert} coin={coinMap.get(alert.coinId)} onRemove={removeAlert} />))}</div>) : (<p className="text-gray-500 dark:text-gray-500 text-center py-4">You have no active alerts.</p>)}</div><div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg shadow-lg"><h2 className="text-xl font-semibold mb-4 text-gray-500 dark:text-gray-400"><i className="fas fa-history mr-2"></i>Triggered History ({triggeredAlerts.length})</h2>{triggeredAlerts.length > 0 ? (<div className="space-y-3">{triggeredAlerts.map(alert => (<AlertItem key={alert.id} alert={alert} coin={coinMap.get(alert.coinId)} onRemove={removeAlert} />))}</div>) : (<p className="text-gray-500 dark:text-gray-500 text-center py-4">No alerts have been triggered yet.</p>)}</div>{isModalOpen && <CreateAlertModal onClose={() => setModalOpen(false)} />}</div>);
+};
+
+// =========================================================================
+// ========= END OF CONSOLIDATED COMPONENTS ================================
+// =========================================================================
+
 
 const Dashboard = ({ onCoinSelect }) => {
   const { coins, loading: coinsLoading, error: coinsError, fearAndGreed, dailySummary } = useDApp();
@@ -876,8 +1547,6 @@ const Dashboard = ({ onCoinSelect }) => {
   );
 };
 
-// ... ALL OTHER COMPONENTS, etc.
-
 const App = () => {
   const [activePage, setActivePage] = React.useState('Dashboard');
   const [selectedCoin, setSelectedCoin] = React.useState(null);
@@ -888,11 +1557,26 @@ const App = () => {
   };
 
   const renderPage = React.useMemo(() => {
-    // This will be expanded to include all pages once they are defined above.
     switch (activePage) {
       case 'Dashboard':
         return <Dashboard onCoinSelect={handleSelectCoin} />;
-      // ... other cases will be added here
+      case 'Portfolio':
+        return <Portfolio setActivePage={setActivePage} />;
+      case 'Recommendations':
+        return <Recommendations />;
+      case 'Alerts':
+        return <AlertsPage />;
+      case 'Compare':
+        return <Compare onCoinSelect={handleSelectCoin} />;
+      case 'Learning Center':
+        return <LearningCenter />;
+      case 'Coin Research':
+        if (selectedCoin) {
+          return <CoinResearch coin={selectedCoin} setActivePage={setActivePage} />;
+        }
+        // Fallback if no coin is selected but page is active
+        setActivePage('Dashboard'); 
+        return <Dashboard onCoinSelect={handleSelectCoin} />;
       default:
         return <Dashboard onCoinSelect={handleSelectCoin} />;
     }
@@ -910,7 +1594,7 @@ const App = () => {
                   <main key={activePage} className="flex-1 p-4 sm:p-6 lg:p-8 ml-16 md:ml-64 transition-all duration-300 animate-page-fade-in">
                     {renderPage}
                   </main>
-                  {/* NotificationCenter will be added here */}
+                  <NotificationCenter />
                 </div>
               </DAppProvider>
             </NotificationsProvider>
