@@ -92,6 +92,7 @@ type Page = 'Dashboard' | 'Portfolio' | 'Recommendations' | 'Learning Center' | 
 const COINGECKO_API_URL = 'https://cors.eu.org/https://api.coingecko.com/api/v3';
 const coingeckoCache = new Map();
 const COINGECKO_CACHE_TTL = 5 * 60 * 1000;
+const TRADING_FEE_RATE = 0.001; // 0.1%
 
 async function fetchWithCache(key, fetcher, cache, ttl) {
   const now = Date.now();
@@ -513,8 +514,10 @@ const PortfolioProvider = ({ children }) => {
     }, [portfolio]);
     const buyCoin = (coin, amount, price, isSilent = false) => {
         const totalCost = amount * price;
-        if (portfolio.usdtBalance < totalCost) {
-            if (!isSilent) alert("Insufficient funds!");
+        const fee = totalCost * TRADING_FEE_RATE;
+        const totalCostWithFee = totalCost + fee;
+        if (portfolio.usdtBalance < totalCostWithFee) {
+            if (!isSilent) alert("Insufficient funds (including 0.1% fee)!");
             return false;
         }
         setPortfolio(prev => {
@@ -522,13 +525,13 @@ const PortfolioProvider = ({ children }) => {
             const existing = prev.holdings[coin.id];
             if (existing) {
                 const totalAmount = existing.amount + amount;
-                const totalSpent = (existing.avgBuyPrice * existing.amount) + totalCost;
+                const totalSpent = (existing.avgBuyPrice * existing.amount) + totalCostWithFee;
                 newHoldings[coin.id] = { ...existing, amount: totalAmount, avgBuyPrice: totalSpent / totalAmount };
             } else {
-                newHoldings[coin.id] = { coin, amount, avgBuyPrice: price };
+                newHoldings[coin.id] = { coin, amount, avgBuyPrice: price * (1 + TRADING_FEE_RATE) };
             }
-            const newTx = { id: `txn_${Date.now()}`, type: 'buy', coin, amount, price, total: totalCost, date: new Date().toISOString() };
-            return { ...prev, usdtBalance: prev.usdtBalance - totalCost, holdings: newHoldings, transactions: [newTx, ...prev.transactions] };
+            const newTx = { id: `txn_${Date.now()}`, type: 'buy', coin, amount, price, fee, total: totalCostWithFee, date: new Date().toISOString() };
+            return { ...prev, usdtBalance: prev.usdtBalance - totalCostWithFee, holdings: newHoldings, transactions: [newTx, ...prev.transactions] };
         });
         return true;
     };
@@ -539,8 +542,10 @@ const PortfolioProvider = ({ children }) => {
             return false;
         }
         const totalRevenue = amount * price;
+        const fee = totalRevenue * TRADING_FEE_RATE;
+        const revenueAfterFee = totalRevenue - fee;
         const costBasis = amount * holding.avgBuyPrice;
-        const realizedPnl = totalRevenue - costBasis;
+        const realizedPnl = revenueAfterFee - costBasis;
         setPortfolio(prev => {
             const newHoldings = { ...prev.holdings };
             const existing = newHoldings[coin.id];
@@ -549,14 +554,14 @@ const PortfolioProvider = ({ children }) => {
             } else {
                 newHoldings[coin.id] = { ...existing, amount: existing.amount - amount };
             }
-            const newTx = { id: `txn_${Date.now()}`, type: 'sell', coin, amount, price, total: totalRevenue, pnl: realizedPnl, date: new Date().toISOString() };
-            return { ...prev, usdtBalance: prev.usdtBalance + totalRevenue, holdings: newHoldings, transactions: [newTx, ...prev.transactions] };
+            const newTx = { id: `txn_${Date.now()}`, type: 'sell', coin, amount, price, fee, total: revenueAfterFee, pnl: realizedPnl, date: new Date().toISOString() };
+            return { ...prev, usdtBalance: prev.usdtBalance + revenueAfterFee, holdings: newHoldings, transactions: [newTx, ...prev.transactions] };
         });
         return true;
     };
     const placeLimitOrder = (type, coin, amount, limitPrice, isSilent = false) => {
-        if (type === 'buy' && portfolio.usdtBalance < amount * limitPrice) {
-            if (!isSilent) alert("Insufficient USDT for limit order.");
+        if (type === 'buy' && portfolio.usdtBalance < (amount * limitPrice) * (1 + TRADING_FEE_RATE)) {
+            if (!isSilent) alert("Insufficient USDT for limit order (including 0.1% fee).");
             return false;
         } else if (type === 'sell' && (!portfolio.holdings[coin.id] || portfolio.holdings[coin.id].amount < amount)) {
             if (!isSilent) alert("Insufficient holdings for limit order.");
@@ -824,30 +829,32 @@ const TradeModal = ({ coin, tradeType, onClose }) => {
   const [orderType, setOrderType] = React.useState('market');
   const [amount, setAmount] = React.useState('');
   const [limitPrice, setLimitPrice] = React.useState('');
-  const [total, setTotal] = React.useState(0);
+  const [subTotal, setSubTotal] = React.useState(0);
+  const [fee, setFee] = React.useState(0);
 
   const holding = portfolio.holdings[coin.id];
   const maxAmount = tradeType === 'buy'
-    ? portfolio.usdtBalance / coin.current_price
+    ? portfolio.usdtBalance / (coin.current_price * (1 + TRADING_FEE_RATE))
     : (holding ? holding.amount : 0);
 
   React.useEffect(() => {
     const numericAmount = parseFloat(amount);
+    let currentSubtotal = 0;
     if (!isNaN(numericAmount) && numericAmount > 0) {
       if (orderType === 'market') {
-        setTotal(numericAmount * coin.current_price);
+        currentSubtotal = numericAmount * coin.current_price;
       } else {
         const numericLimitPrice = parseFloat(limitPrice);
         if (!isNaN(numericLimitPrice) && numericLimitPrice > 0) {
-          setTotal(numericAmount * numericLimitPrice);
-        } else {
-          setTotal(0);
+            currentSubtotal = numericAmount * numericLimitPrice;
         }
       }
-    } else {
-      setTotal(0);
     }
+    setSubTotal(currentSubtotal);
+    setFee(currentSubtotal * TRADING_FEE_RATE);
   }, [amount, limitPrice, orderType, coin.current_price]);
+  
+  const finalTotal = tradeType === 'buy' ? subTotal + fee : subTotal - fee;
 
   const handleAmountChange = (e) => {
     const value = e.target.value;
@@ -931,24 +938,34 @@ const TradeModal = ({ coin, tradeType, onClose }) => {
           <div className="mb-4">
             <div className="flex justify-between items-baseline text-sm text-gray-500 dark:text-gray-400 mb-1">
               <label htmlFor="amount" className="font-medium">Amount ({coin.symbol.toUpperCase()})</label>
-              <span>{tradeType === 'buy' ? 'Balance:' : 'Holding:'} {maxAmount.toFixed(4)}</span>
+              <span>{tradeType === 'buy' ? 'Available:' : 'Holding:'} {tradeType === 'buy' ? `$${portfolio.usdtBalance.toFixed(2)}` : `${(holding?.amount || 0).toFixed(6)}`}</span>
             </div>
             <div className="relative">
                 <input type="text" id="amount" value={amount} onChange={handleAmountChange} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0.00" aria-label={`Amount in ${coin.symbol.toUpperCase()}`} />
                  <button type="button" onClick={handleMaxClick} className="absolute right-2 top-1/2 -translate-y-1/2 bg-primary text-white text-xs px-2 py-1 rounded hover:bg-blue-500 transition-colors">MAX</button>
             </div>
           </div>
-
-          <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-3 flex justify-between items-center text-gray-600 dark:text-gray-300 mb-4">
-            <span className="flex items-center text-sm"><i className="fas fa-tag mr-2 text-primary"></i>Market Price</span>
-            <span className="font-mono font-semibold text-gray-900 dark:text-white">${coin.current_price.toLocaleString()}</span>
-          </div>
+            <div className="space-y-2 text-sm mb-4">
+                <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                    <span className="flex items-center"><i className="fas fa-tag mr-2 text-primary"></i>Market Price</span>
+                    <span className="font-mono font-semibold text-gray-900 dark:text-white">${coin.current_price.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                    <span className="flex items-center">Subtotal</span>
+                    <span className="font-mono text-gray-800 dark:text-gray-200">${subTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                </div>
+                <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 relative group">
+                    <span className="flex items-center cursor-help">Fee (0.1%)<i className="fas fa-info-circle text-xs ml-1.5 text-gray-400"></i></span>
+                    <span className="font-mono text-gray-800 dark:text-gray-200">{tradeType === 'buy' ? '+' : '-'}${fee.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</span>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 dark:bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">A 0.1% fee is applied to simulate real trading conditions.<div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-700 dark:border-t-gray-900"></div></div>
+                </div>
+            </div>
 
           <div className="border-t border-gray-200 dark:border-gray-600 my-4"></div>
 
           <div className="flex justify-between items-center text-xl font-bold mb-6">
-            <span className="text-gray-600 dark:text-gray-300">{orderType === 'market' ? 'Total' : 'Est. Total'}</span>
-            <span className="font-mono">${total.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+            <span className="text-gray-600 dark:text-gray-300">Total</span>
+            <span className="font-mono">${finalTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
           </div>
           <button type="submit" className={`w-full p-3 rounded-md font-bold text-white transition-colors ${tradeType === 'buy' ? 'bg-success hover:bg-green-500' : 'bg-danger hover:bg-red-500'}`}>
             {orderType === 'market' ? `Confirm Market ${tradeType}` : `Place Limit ${tradeType} Order` }
@@ -960,11 +977,13 @@ const TradeModal = ({ coin, tradeType, onClose }) => {
 };
 
 const BuyAssetModal = ({ onClose }) => {
-  const { portfolio, buyCoin } = usePortfolio();
+  const { portfolio, buyCoin, placeLimitOrder } = usePortfolio();
   const { coins } = useDApp();
   const [selectedCoinId, setSelectedCoinId] = React.useState('');
   const [inputType, setInputType] = React.useState('usdt');
   const [inputValue, setInputValue] = React.useState('');
+  const [orderType, setOrderType] = React.useState('market');
+  const [limitPrice, setLimitPrice] = React.useState('');
   
   const selectedCoin = React.useMemo(() => {
       return coins.find(c => c.id === selectedCoinId) || null;
@@ -972,17 +991,37 @@ const BuyAssetModal = ({ onClose }) => {
 
   React.useEffect(() => { setInputValue(''); }, [selectedCoinId]);
 
-  const { coinAmount, usdtTotal } = React.useMemo(() => {
-    if (!selectedCoin || !inputValue) return { coinAmount: 0, usdtTotal: 0 };
+  const { coinAmount, usdtTotal, fee } = React.useMemo(() => {
+    if (!selectedCoin || !inputValue) return { coinAmount: 0, usdtTotal: 0, fee: 0 };
     const numericValue = parseFloat(inputValue);
-    if (isNaN(numericValue) || numericValue < 0) return { coinAmount: 0, usdtTotal: 0 };
+    if (isNaN(numericValue) || numericValue <= 0) return { coinAmount: 0, usdtTotal: 0, fee: 0 };
+
+    let priceToUse = selectedCoin.current_price;
+    if (orderType === 'limit') {
+        const numericLimit = parseFloat(limitPrice);
+        if (numericLimit > 0) {
+            priceToUse = numericLimit;
+        } else {
+             return { coinAmount: 0, usdtTotal: 0, fee: 0 };
+        }
+    }
+    
+    let subtotal = 0;
+    let finalCoinAmount = 0;
 
     if (inputType === 'usdt') {
-      return { usdtTotal: numericValue, coinAmount: numericValue / selectedCoin.current_price, };
+        subtotal = numericValue;
+        finalCoinAmount = priceToUse > 0 ? numericValue / priceToUse : 0;
     } else {
-      return { usdtTotal: numericValue * selectedCoin.current_price, coinAmount: numericValue, };
+        subtotal = numericValue * priceToUse;
+        finalCoinAmount = numericValue;
     }
-  }, [inputValue, inputType, selectedCoin]);
+
+    const calculatedFee = subtotal * TRADING_FEE_RATE;
+    return { coinAmount: finalCoinAmount, usdtTotal: subtotal, fee: calculatedFee };
+  }, [inputValue, inputType, selectedCoin, orderType, limitPrice]);
+
+  const finalTotal = usdtTotal + fee;
 
   const handleInputTypeChange = (newType) => {
     if (inputType !== newType) { setInputValue(''); setInputType(newType); }
@@ -992,13 +1031,25 @@ const BuyAssetModal = ({ onClose }) => {
     const value = e.target.value;
     if (/^\d*\.?\d*$/.test(value)) { setInputValue(value); }
   };
+
+  const handleLimitPriceChange = (e) => {
+    const value = e.target.value;
+    if (/^\d*\.?\d*$/.test(value)) {
+      setLimitPrice(value);
+    }
+  };
   
   const handleMaxClick = () => {
     if (!selectedCoin) return;
+    let priceToUse = selectedCoin.current_price;
+    if (orderType === 'limit') {
+        const numericLimit = parseFloat(limitPrice);
+        if(numericLimit > 0) priceToUse = numericLimit;
+    }
     if (inputType === 'usdt') {
       setInputValue(portfolio.usdtBalance.toFixed(2));
     } else {
-      const maxCoin = portfolio.usdtBalance / selectedCoin.current_price;
+      const maxCoin = portfolio.usdtBalance / (priceToUse * (1 + TRADING_FEE_RATE));
       setInputValue(parseFloat(maxCoin.toFixed(8)).toString());
     }
   }
@@ -1007,8 +1058,19 @@ const BuyAssetModal = ({ onClose }) => {
     e.preventDefault();
     if (!selectedCoin) { alert("Please select a coin."); return; }
     if (coinAmount <= 0) { alert("Please enter a valid amount."); return; }
-    const success = buyCoin(selectedCoin, coinAmount, selectedCoin.current_price);
-    if (success) { onClose(); }
+
+    if (orderType === 'market') {
+      const success = buyCoin(selectedCoin, coinAmount, selectedCoin.current_price);
+      if (success) { onClose(); }
+    } else {
+      const numericLimitPrice = parseFloat(limitPrice);
+      if (isNaN(numericLimitPrice) || numericLimitPrice <= 0) {
+        alert("Please enter a valid limit price.");
+        return;
+      }
+      const success = placeLimitOrder('buy', selectedCoin, coinAmount, numericLimitPrice);
+      if (success) { onClose(); }
+    }
   };
 
   const subtext = React.useMemo(() => {
@@ -1016,6 +1078,16 @@ const BuyAssetModal = ({ onClose }) => {
     if (inputType === 'usdt') return `≈ ${coinAmount.toFixed(6)} ${selectedCoin.symbol.toUpperCase()}`;
     return `≈ $${usdtTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, [inputValue, inputType, selectedCoin, coinAmount, usdtTotal]);
+
+  const OrderTypeButton = ({ type, label }) => (
+      <button
+        type="button"
+        onClick={() => setOrderType(type)}
+        className={`w-full p-2 text-center font-semibold rounded-md transition-colors ${orderType === type ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+      >
+          {label}
+      </button>
+  );
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -1033,6 +1105,21 @@ const BuyAssetModal = ({ onClose }) => {
             </select>
           </div>
           {selectedCoin && (<>
+              <div className="grid grid-cols-2 gap-2 mb-4 p-1 bg-gray-100 dark:bg-gray-900 rounded-lg">
+                <OrderTypeButton type="market" label="Market" />
+                <OrderTypeButton type="limit" label="Limit" />
+              </div>
+
+              {orderType === 'limit' && (
+                <div className="mb-4">
+                    <label htmlFor="limitPrice" className="block font-medium text-sm text-gray-500 dark:text-gray-400 mb-1">Limit Price (USD)</label>
+                    <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                        <input type="text" id="limitPrice" value={limitPrice} onChange={handleLimitPriceChange} className="w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white p-3 pl-6 rounded-md border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="0.00" aria-label="Limit price in USD" />
+                    </div>
+                </div>
+              )}
+
               <div className="mb-4">
                 <div className="flex items-center space-x-2 mb-2">
                     <button type="button" onClick={() => handleInputTypeChange('usdt')} className={`px-3 py-1 text-sm rounded-md transition-colors ${inputType === 'usdt' ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'}`}>Buy in USDT</button>
@@ -1049,16 +1136,25 @@ const BuyAssetModal = ({ onClose }) => {
                 </div>
                 {subtext && <p className="text-right text-sm text-gray-500 dark:text-gray-400 mt-1 h-5">{subtext}</p>}
               </div>
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-md p-3 flex justify-between items-center text-gray-600 dark:text-gray-300 mb-4">
-                <span className="flex items-center text-sm"><i className="fas fa-tag mr-2 text-primary"></i>Current Price</span>
-                <span className="font-mono font-semibold text-gray-900 dark:text-white">${selectedCoin.current_price.toLocaleString()}</span>
+              <div className="space-y-2 text-sm mb-4">
+                    <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                        <span>Subtotal</span>
+                        <span className="font-mono text-gray-800 dark:text-gray-200">${usdtTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 relative group">
+                        <span className="flex items-center cursor-help">Fee (0.1%)<i className="fas fa-info-circle text-xs ml-1.5 text-gray-400"></i></span>
+                        <span className="font-mono text-gray-800 dark:text-gray-200">+${fee.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4})}</span>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 dark:bg-gray-900 text-white text-xs rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">A 0.1% fee is applied to simulate real trading conditions.<div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-gray-700 dark:border-t-gray-900"></div></div>
+                    </div>
               </div>
               <div className="border-t border-gray-200 dark:border-gray-600 my-4"></div>
               <div className="flex justify-between items-center text-xl font-bold mb-6">
                 <span className="text-gray-600 dark:text-gray-300">Total</span>
-                <span className="font-mono">${usdtTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                <span className="font-mono">${finalTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
               </div>
-              <button type="submit" className="w-full p-3 rounded-md font-bold text-white transition-colors bg-success hover:bg-green-500">Confirm Buy</button>
+              <button type="submit" className="w-full p-3 rounded-md font-bold text-white transition-colors bg-success hover:bg-green-500">
+                {orderType === 'market' ? 'Confirm Market Buy' : 'Place Limit Buy Order'}
+              </button>
             </>)}
         </form>
       </div>
@@ -1334,11 +1430,11 @@ const Portfolio = ({ setActivePage }) => {
         <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg mt-6"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-semibold text-primary"><i className="fas fa-brain mr-2"></i>AI Portfolio Insight</h2><button onClick={handleGetInsight} disabled={loading} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-500 disabled:bg-gray-600 flex items-center"><i className={`fas fa-sync mr-2 ${loading ? 'animate-spin' : ''}`}></i>{loading ? 'Analyzing...' : 'Get Insight'}</button></div>{loading && (<div className="text-center p-4"><i className="fas fa-spinner fa-spin text-2xl text-primary"></i><p className="mt-2 text-gray-500 dark:text-gray-400">The AI is analyzing your portfolio...</p></div>)}{insight && (<div className="space-y-6"><div className="bg-gray-200 dark:bg-gray-700/50 p-4 rounded-lg"><h3 className="font-semibold text-lg mb-2 text-gray-900 dark:text-white">Overall Assessment</h3><p className="text-gray-700 dark:text-gray-300 italic">"{insight.overallAssessment}"</p></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><InsightItem icon="fa-shield-alt" title={`Risk Analysis (Score: ${insight.riskScore}/10)`} content={insight.riskAnalysis} colorClass="bg-danger/80" /><InsightItem icon="fa-cubes" title="Diversification Suggestion" content={insight.diversification} colorClass="bg-secondary/80" /><InsightItem icon="fa-balance-scale" title="Rebalancing Opportunities" content={insight.rebalancingOpportunities} colorClass="bg-yellow-500/80" /><InsightItem icon="fa-check-circle" title="Positive Note" content={insight.positiveNote} colorClass="bg-success/80" /></div></div>)}{!loading && !insight && (<div className="text-center text-gray-500 dark:text-gray-500 p-4"><p>Click "Get Insight" for a detailed AI-powered analysis of your portfolio.</p></div>)}</div>
     );};
     const TransactionHistoryTable = ({ transactions }) => { const [sortConfig, setSortConfig] = React.useState({ key: 'date', direction: 'desc' }); const sortedTransactions = React.useMemo(() => { const sortableItems = [...transactions]; if (sortConfig.key) { sortableItems.sort((a, b) => { let comparison = 0; if (sortConfig.key === 'date') { comparison = new Date(a.date).getTime() - new Date(b.date).getTime(); } else if (sortConfig.key === 'pnl') { const isASell = a.type === 'sell'; const isBSell = b.type === 'sell'; if (isASell && !isBSell) return -1; if (!isASell && isBSell) return 1; if (!isASell && !isBSell) return 0; comparison = (a.pnl ?? 0) - (b.pnl ?? 0); } else { comparison = a.type.localeCompare(b.type); } return sortConfig.direction === 'asc' ? comparison : -comparison; }); } return sortableItems; }, [transactions, sortConfig]); const handleSort = (key) => { setSortConfig(prevConfig => ({ key, direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc', })); }; const getSortIcon = (key) => { if (sortConfig.key !== key) { return <i className="fas fa-sort text-gray-400/50 ml-2"></i>; } return sortConfig.direction === 'asc' ? <i className="fas fa-sort-up text-primary ml-2"></i> : <i className="fas fa-sort-down text-primary ml-2"></i>; }; const totalRealizedPnl = React.useMemo(() => { return transactions.reduce((acc, tx) => acc + (tx.pnl ?? 0), 0); }, [transactions]); const SortableHeader = ({ sortKey, children }) => ( <th className="p-2"><button onClick={() => handleSort(sortKey)} className="flex items-center hover:text-gray-900 dark:hover:text-gray-100 transition-colors">{children}{getSortIcon(sortKey)}</button></th> ); return (
-        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mt-6 overflow-x-auto"><h2 className="text-xl font-semibold mb-4">Transaction History</h2>{transactions.length > 0 ? (<table className="w-full text-left"><thead><tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-sm"><SortableHeader sortKey="type">Type</SortableHeader><th className="p-2">Asset</th><th className="p-2">Price</th><th className="p-2">Amount</th><th className="p-2">Buy Value</th><th className="p-2">Sell Value</th><th className="p-2">Difference</th><SortableHeader sortKey="pnl">P/L</SortableHeader><SortableHeader sortKey="date">Date</SortableHeader></tr></thead><tbody>{sortedTransactions.map((tx) => { const isBuy = tx.type === 'buy'; const pnl = tx.pnl ?? 0; const isPnlPositive = pnl >= 0; const buyValue = isBuy ? tx.total : tx.total - pnl; return (
-            <tr key={tx.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"><td className="p-2"><span className={`font-bold ${isBuy ? 'text-success' : 'text-danger'}`}>{tx.type.toUpperCase()}</span></td><td className="p-2 flex items-center"><img src={tx.coin.image} alt={tx.coin.name} className="w-5 h-5 mr-2" />{tx.coin.name}</td><td className="p-2">${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">{tx.amount.toFixed(6)} {tx.coin.symbol.toUpperCase()}</td>{isBuy ? (<><td className="p-2">${tx.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2 text-center text-gray-500">-</td><td className="p-2 text-center text-gray-500">-</td><td className="p-2 text-center text-gray-500">-</td></>) : (<><td className="p-2">${buyValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">${tx.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className={`p-2 font-semibold ${isPnlPositive ? 'text-success' : 'text-danger'}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className={`p-2 font-semibold ${isPnlPositive ? 'text-success' : 'text-danger'}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></>)}<td className="p-2 text-gray-500 dark:text-gray-400">{new Date(tx.date).toLocaleString()}</td></tr>);})}</tbody><tfoot><tr className="border-t-2 border-gray-300 dark:border-gray-600 font-bold"><td colSpan={7} className="p-2 text-right text-base">Total Realized P/L</td><td colSpan={2} className={`p-2 text-base ${totalRealizedPnl >= 0 ? 'text-success' : 'text-danger'}`}>${totalRealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot></table>) : (<div className="text-center p-8"><p className="text-gray-500">You have no transaction history yet.</p></div>)}</div>
+        <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mt-6 overflow-x-auto"><h2 className="text-xl font-semibold mb-4">Transaction History</h2>{transactions.length > 0 ? (<table className="w-full text-left"><thead><tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 text-sm"><SortableHeader sortKey="type">Type</SortableHeader><th className="p-2">Asset</th><th className="p-2">Price</th><th className="p-2">Amount</th><th className="p-2">Fee</th><th className="p-2">Net Value</th><SortableHeader sortKey="pnl">P/L</SortableHeader><SortableHeader sortKey="date">Date</SortableHeader></tr></thead><tbody>{sortedTransactions.map((tx) => { const isBuy = tx.type === 'buy'; const pnl = tx.pnl ?? 0; const isPnlPositive = pnl >= 0; return (
+            <tr key={tx.id} className="border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"><td className="p-2"><span className={`font-bold ${isBuy ? 'text-success' : 'text-danger'}`}>{tx.type.toUpperCase()}</span></td><td className="p-2 flex items-center"><img src={tx.coin.image} alt={tx.coin.name} className="w-5 h-5 mr-2" />{tx.coin.name}</td><td className="p-2">${tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td><td className="p-2">{tx.amount.toFixed(6)} {tx.coin.symbol.toUpperCase()}</td><td className="p-2">${(tx.fee ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td><td className="p-2">${tx.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>{isBuy ? (<td className="p-2 text-center text-gray-500">-</td>) : (<td className={`p-2 font-semibold ${isPnlPositive ? 'text-success' : 'text-danger'}`}>${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>)}<td className="p-2 text-gray-500 dark:text-gray-400">{new Date(tx.date).toLocaleString()}</td></tr>);})}</tbody><tfoot><tr className="border-t-2 border-gray-300 dark:border-gray-600 font-bold"><td colSpan={6} className="p-2 text-right text-base">Total Realized P/L</td><td colSpan={2} className={`p-2 text-base ${totalRealizedPnl >= 0 ? 'text-success' : 'text-danger'}`}>${totalRealizedPnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td></tr></tfoot></table>) : (<div className="text-center p-8"><p className="text-gray-500">You have no transaction history yet.</p></div>)}</div>
     );};
     return (
-        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Portfolio</h1><PortfolioHeader {...portfolioData} /><PortfolioChart transactions={portfolio.transactions} initialBalance={portfolio.initialBalance} /><div className="flex justify-between items-center"><h2 className="text-2xl font-semibold">Assets</h2><div className="flex items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-lg"><span className="text-gray-500 dark:text-gray-400 mr-2">Cash Balance:</span><span className="font-bold text-lg">${portfolio.usdtBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div></div><HoldingsTable holdings={portfolioData.holdings} onTrade={handleTradeClick} onBuyNewAsset={handleBuyNewAsset} /><LimitOrdersSection orders={portfolio.limitOrders} onCancel={cancelLimitOrder} /><AIInsight /><TransactionHistoryTable transactions={portfolio.transactions} />{isTradeModalOpen && selectedCoin && (<TradeModal coin={selectedCoin} tradeType={tradeType} onClose={() => setTradeModalOpen(false)} />)}{isBuyModalOpen && (<BuyAssetModal onClose={() => setBuyModalOpen(false)} />)}</div>
+        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Portfolio</h1><PortfolioHeader {...portfolioData} /><PortfolioChart transactions={portfolio.transactions} initialBalance={portfolio.initialBalance} /><div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4"><h2 className="text-2xl font-semibold">Assets</h2><div className="flex items-center gap-4"><div className="flex items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-lg"><span className="text-gray-500 dark:text-gray-400 mr-2">Cash Balance:</span><span className="font-bold text-lg">${portfolio.usdtBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div><button onClick={handleBuyNewAsset} className="bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-500 transition-colors flex items-center justify-center"><i className="fas fa-plus mr-2"></i>Buy New Asset</button></div></div><HoldingsTable holdings={portfolioData.holdings} onTrade={handleTradeClick} onBuyNewAsset={handleBuyNewAsset} /><LimitOrdersSection orders={portfolio.limitOrders} onCancel={cancelLimitOrder} /><AIInsight /><TransactionHistoryTable transactions={portfolio.transactions} />{isTradeModalOpen && selectedCoin && (<TradeModal coin={selectedCoin} tradeType={tradeType} onClose={() => setTradeModalOpen(false)} />)}{isBuyModalOpen && (<BuyAssetModal onClose={() => setBuyModalOpen(false)} />)}</div>
     );
 };
 
@@ -1375,7 +1471,7 @@ const LearningCenter = () => {
         <div className="bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md mb-3 overflow-hidden"><button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-5 text-left font-semibold text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors" aria-expanded={isOpen}><span className="flex items-center"><i className={`fas ${icon} text-primary w-6 mr-4 text-xl`}></i><span className="text-lg">{title}</span></span><i className={`fas fa-chevron-down transform transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}></i></button><div className={`transition-all duration-500 ease-in-out ${isOpen ? 'max-h-screen' : 'max-h-0'}`} style={{ transitionProperty: 'max-height, padding' }}><div className={`p-5 pt-0 text-gray-600 dark:text-gray-300 space-y-3 leading-relaxed ${isOpen ? 'opacity-100' : 'opacity-0'}`}>{children}</div></div></div>
     );};
     return (
-        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">Learning Center</h1><p className="text-gray-600 dark:text-gray-400">Expand your knowledge with these key topics in cryptocurrency investing.</p><div><AccordionItem title="Crypto Basics" icon="fa-cubes"><p><strong>Cryptocurrency:</strong> A digital or virtual currency that uses cryptography for security. Unlike traditional currencies issued by governments (fiat currencies), cryptocurrencies are typically decentralized.</p><p><strong>Blockchain:</strong> A distributed database that is shared among the nodes of a computer network. It's the technology that enables the existence of cryptocurrency by maintaining a secure and decentralized record of transactions.</p><p><strong>Wallet:</strong> A digital wallet used to store, send, and receive cryptocurrencies. Wallets can be software-based (desktop, mobile, web) or hardware-based (physical devices).</p></AccordionItem><AccordionItem title="Understanding Order Types" icon="fa-exchange-alt"><p><strong>Market Order:</strong> This is the simplest type of trade. It's an order to buy or sell an asset immediately at the best available current price. It guarantees execution but not the price.</p><p><strong>Limit Order:</strong> An order to buy or sell an asset at a specific price or better. A buy limit order will only execute at the limit price or lower, and a sell limit order will only execute at the limit price or higher. This gives you control over the price but does not guarantee the order will be filled.</p></AccordionItem><AccordionItem title="Common Trading Strategies" icon="fa-chart-line"><p><strong>HODL (Hold On for Dear Life):</strong> A long-term strategy where investors buy a cryptocurrency and hold it for a long period, regardless of market fluctuations, with the belief that the price will increase over time.</p><p><strong>Day Trading:</strong> A short-term strategy involving multiple trades within a single day to profit from small price movements. It's high-risk and requires significant time and knowledge.</p><p><strong>Dollar-Cost Averaging (DCA):</strong> An investment strategy where you invest a fixed amount of money at regular intervals, regardless of the asset's price. This can help reduce the impact of volatility.</p></AccordionItem><AccordionItem title="Risks of Investing" icon="fa-exclamation-triangle"><p><strong>Volatility:</strong> Cryptocurrency prices can be extremely volatile, with large price swings in short periods. You could lose a significant portion of your investment quickly.</p><p><strong>Regulatory Risk:</strong> The legal and regulatory landscape for cryptocurrencies is still evolving. New regulations could impact the value and legality of certain assets.</p><p><strong>Security Risk:</strong> Exchanges can be hacked, and assets can be stolen. It's crucial to use strong security practices, such as two-factor authentication and secure wallets.</p></AccordionItem></div><div className="bg-red-50 dark:bg-red-900/50 border-l-4 border-danger text-red-800 dark:text-red-100 p-4 rounded-r-lg" role="alert"><p className="font-bold"><i className="fas fa-gavel mr-2"></i>Disclaimer</p><p>This application is for educational and entertainment purposes only. The information provided, including AI-generated content, does not constitute financial advice. Always do your own research (DYOR) and consult with a qualified financial advisor before making any investment decisions.</p></div></div>
+        <div className="space-y-6"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">Learning Center</h1><p className="text-gray-600 dark:text-gray-400">Expand your knowledge with these key topics in cryptocurrency investing.</p><div><AccordionItem title="Crypto Basics" icon="fa-cubes"><p><strong>Cryptocurrency:</strong> A digital or virtual currency that uses cryptography for security. Unlike traditional currencies issued by governments (fiat currencies), cryptocurrencies are typically decentralized.</p><p><strong>Blockchain:</strong> A distributed database that is shared among the nodes of a computer network. It's the technology that enables the existence of cryptocurrency by maintaining a secure and decentralized record of transactions.</p><p><strong>Wallet:</strong> A digital wallet used to store, send, and receive cryptocurrencies. Wallets can be software-based (desktop, mobile, web) or hardware-based (physical devices).</p></AccordionItem><AccordionItem title="Understanding Order Types" icon="fa-exchange-alt"><p><strong>Market Order:</strong> This is the simplest type of trade. It's an order to buy or sell an asset immediately at the best available current price. It guarantees execution but not the price.</p><p><strong>Limit Order:</strong> An order to buy or sell an asset at a specific price or better. A buy limit order will only execute at the limit price or lower, and a sell limit order will only execute at the limit price or higher. This gives you control over the price but does not guarantee the order will be filled.</p></AccordionItem><AccordionItem title="Common Trading Strategies" icon="fa-chart-line"><p><strong>HODL (Hold On for Dear Life):</strong> A long-term strategy where investors buy a cryptocurrency and hold it for a long period, regardless of market fluctuations, with the belief that the price will increase over time.</p><p><strong>Dollar-Cost Averaging (DCA):</strong> An investment strategy where you invest a fixed amount of money at regular intervals, regardless of the asset's price. This can help reduce the impact of volatility.</p></AccordionItem><AccordionItem title="Risks of Investing" icon="fa-exclamation-triangle"><p><strong>Volatility:</strong> Cryptocurrency prices can be extremely volatile, with large price swings in short periods. You could lose a significant portion of your investment quickly.</p><p><strong>Regulatory Risk:</strong> The legal and regulatory landscape for cryptocurrencies is still evolving. New regulations could impact the value and legality of certain assets.</p><p><strong>Security Risk:</strong> Exchanges can be hacked, and assets can be stolen. It's crucial to use strong security practices, such as two-factor authentication and secure wallets.</p></AccordionItem></div><div className="bg-red-50 dark:bg-red-900/50 border-l-4 border-danger text-red-800 dark:text-red-100 p-4 rounded-r-lg" role="alert"><p className="font-bold"><i className="fas fa-gavel mr-2"></i>Disclaimer</p><p>This application is for educational and entertainment purposes only. The information provided, including AI-generated content, does not constitute financial advice. Always do your own research (DYOR) and consult with a qualified financial advisor before making any investment decisions.</p></div></div>
     );
 };
 
