@@ -2,8 +2,17 @@
 <html lang="en">
   <head>
     <script>
-      // Polyfill for process.env to work in a browser environment
+      // Polyfill for process.env
       window.process = window.process || { env: {} };
+      
+      // Load environment-specific keys.
+      // On Vercel, this will load 'vercel-env.js' created during the build process.
+      // In other environments (like AI Studio), it falls back to the local 'env.js'.
+      if (window.location.hostname.endsWith('.vercel.app')) {
+        document.write('<script src="vercel-env.js"><\/script>');
+      } else {
+        document.write('<script src="env.js"><\/script>');
+      }
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -306,20 +315,30 @@ const getTrendPrediction = async (coinName, historicalData) => {
     }
 };
 
-const getAIRecommendations = async (coins, fearAndGreedValue) => {
+const getAIRecommendations = async (coins, fearAndGreedValue, feedbackData = {}) => {
     const mockRecommendations = [
       { coinId: 'bitcoin', coinName: 'Bitcoin', score: 82, recommendation: 'Strong Buy', reasoning: 'Strong fundamentals and increasing institutional adoption (mock data).', scoreBreakdown: { trend: 30, sentiment: 20, fundamentals: 18, technology: 9, mood: 5 } },
       { coinId: 'ethereum', coinName: 'Ethereum', score: 65, recommendation: 'Hold', reasoning: 'Solid ecosystem but facing competition and scalability challenges (mock data).', scoreBreakdown: { trend: 22, sentiment: 15, fundamentals: 15, technology: 9, mood: 4 } },
     ];
     if (!ai || coins.length === 0) return mockRecommendations;
+    
     const topCoinsForAnalysis = coins.slice(0, 10);
     const coinInfoForPrompt = topCoinsForAnalysis.map(c => ({ name: c.name, id: c.id }));
+    
+    let feedbackPromptPart = '';
+    if (feedbackData && Object.keys(feedbackData).length > 0) {
+        const feedbackString = Object.entries(feedbackData)
+            .map(([coinId, rating]) => `- The recommendation for ${coinId} was rated as '${rating}'.`)
+            .join('\n');
+        feedbackPromptPart = `\n\nFor context, here is some previous user feedback on recommendations. Use this to refine your analysis and reasoning, especially for coins that were rated 'not_helpful':\n${feedbackString}`;
+    }
+
     const promptText = `
     Act as a sophisticated crypto investment analyst for beginners. Analyze: ${topCoinsForAnalysis.map(c => c.name).join(', ')}.
     API IDs: ${JSON.stringify(coinInfoForPrompt)}.
     The final score (0-100) is a weighted average: Market Trend (35%), Fundamentals (20%), Sentiment (20%), Technology (15%), Market Mood (10%).
     Current Fear & Greed Index is ${fearAndGreedValue} (0=Fear, 100=Greed). Use this for "Market Mood".
-    For each coin, provide: "coinId", "coinName", a final score, a breakdown of scores for each factor (sum must equal total), a recommendation ('Strong Buy', 'Buy', 'Hold', 'Risky', 'Sell'), and a one-sentence reasoning.
+    For each coin, provide: "coinId", "coinName", a final score, a breakdown of scores for each factor (sum must equal total), a recommendation ('Strong Buy', 'Buy', 'Hold', 'Risky', 'Sell'), and a one-sentence reasoning.${feedbackPromptPart}
     Return a JSON array of objects.
     `;
     try {
@@ -1443,28 +1462,136 @@ const Recommendations = () => {
     const [recommendations, setRecommendations] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
+    const [feedback, setFeedback] = React.useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('cryptoFeedback') || '{}');
+        } catch { return {}; }
+    });
     const hasFetchedOnMount = React.useRef(false);
-    const fetchRecommendations = React.useCallback(async (isManualRefresh = false) => {
-        if (coins.length === 0) { if (!isManualRefresh) return; setError("Market data is still loading. Please wait a moment and try again."); return; }
-        setLoading(true); setError(null);
-        try { const fearAndGreed = await getFearAndGreedIndex(); const result = await getAIRecommendations(coins, fearAndGreed.value); setRecommendations(result);
-        } catch (err) { console.error("Failed to fetch recommendations:", err); setError("Could not generate AI recommendations. Displaying cached data. Please try again later."); const result = await getAIRecommendations(coins, 50); setRecommendations(result);
-        } finally { setLoading(false); }
-    }, [coins]);
-    React.useEffect(() => { if (coins.length > 0 && !hasFetchedOnMount.current) { fetchRecommendations(false); hasFetchedOnMount.current = true; } }, [coins, fetchRecommendations]);
-    const ScoreBreakdownDisplay = ({ breakdown }) => (
-        <div className="w-full mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg"><h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Score Breakdown</h4><ul className="text-sm space-y-2 text-gray-600 dark:text-gray-400"><li className="flex justify-between items-center"><span><i className="fas fa-chart-line mr-2 text-blue-400"></i>Market Trend (35%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.trend}/35</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-comments mr-2 text-purple-400"></i>Sentiment (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.sentiment}/20</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-microchip mr-2 text-green-400"></i>Fundamentals (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.fundamentals}/20</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-laptop-code mr-2 text-indigo-400"></i>Technology &amp; Innovation (15%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.technology}/15</strong></li><li className="flex justify-between items-center"><span><i className="fas fa-tachometer-alt mr-2 text-yellow-400"></i>Market Mood (10%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.mood}/10</strong></li></ul></div>
-    );
-    const RecommendationCard = ({ recommendation }) => {
-        const { coins } = useDApp(); const coinData = coins.find(c => c.id === recommendation.coinId);
-        const getScoreColor = (score) => { if (score > 75) return 'text-success'; if (score > 50) return 'text-yellow-400'; return 'text-danger'; };
-        const getRecommendationColor = (rec) => { if (rec.includes('Buy')) return 'bg-success'; if (rec.includes('Hold')) return 'bg-yellow-500'; return 'bg-danger'; }
-        return (<div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg shadow-lg"><div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">{coinData && <img src={coinData.image} alt={coinData.name} className="w-16 h-16"/>}<div className="flex-1 text-center md:text-left"><h3 className="text-2xl font-bold">{recommendation.coinName}</h3><p className="text-gray-600 dark:text-gray-400 mt-1">{recommendation.reasoning}</p></div><div className="flex items-center space-x-6"><div className="text-center"><p className="text-gray-500 dark:text-gray-400 text-sm">Score</p><p className={`text-5xl font-bold ${getScoreColor(recommendation.score)}`}>{recommendation.score}</p></div><div className={`${getRecommendationColor(recommendation.recommendation)} text-white font-bold py-2 px-4 rounded-md text-center`}>{recommendation.recommendation}</div></div></div>{recommendation.scoreBreakdown && <ScoreBreakdownDisplay breakdown={recommendation.scoreBreakdown} />}</div>);
+
+    const handleFeedback = (coinId, type) => {
+        const newFeedback = { ...feedback, [coinId]: type };
+        setFeedback(newFeedback);
+        localStorage.setItem('cryptoFeedback', JSON.stringify(newFeedback));
+        console.log(`Feedback for ${coinId}: ${type}. Stored locally for future analysis.`);
     };
+
+    const fetchRecommendations = React.useCallback(async (isManualRefresh = false) => {
+        if (coins.length === 0) {
+            if (!isManualRefresh) return;
+            setError("Market data is still loading. Please wait a moment and try again.");
+            return;
+        }
+        setLoading(true);
+        setError(null);
+        try {
+            const fearAndGreed = await getFearAndGreedIndex();
+            const result = await getAIRecommendations(coins, fearAndGreed.value, feedback);
+            setRecommendations(result);
+        } catch (err) {
+            console.error("Failed to fetch recommendations:", err);
+            setError("Could not generate AI recommendations. Displaying cached data. Please try again later.");
+            const result = await getAIRecommendations(coins, 50, feedback);
+            setRecommendations(result);
+        } finally {
+            setLoading(false);
+        }
+    }, [coins, feedback]);
+
+    React.useEffect(() => {
+        if (coins.length > 0 && !hasFetchedOnMount.current) {
+            fetchRecommendations(false);
+            hasFetchedOnMount.current = true;
+        }
+    }, [coins, fetchRecommendations]);
+
+    const ScoreBreakdownDisplay = ({ breakdown }) => (
+        <div className="w-full mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            <h4 className="text-sm font-semibold mb-3 text-gray-700 dark:text-gray-300">Score Breakdown</h4>
+            <ul className="text-sm space-y-2 text-gray-600 dark:text-gray-400">
+                <li className="flex justify-between items-center"><span><i className="fas fa-chart-line mr-2 text-blue-400"></i>Market Trend (35%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.trend}/35</strong></li>
+                <li className="flex justify-between items-center"><span><i className="fas fa-comments mr-2 text-purple-400"></i>Sentiment (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.sentiment}/20</strong></li>
+                <li className="flex justify-between items-center"><span><i className="fas fa-microchip mr-2 text-green-400"></i>Fundamentals (20%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.fundamentals}/20</strong></li>
+                <li className="flex justify-between items-center"><span><i className="fas fa-laptop-code mr-2 text-indigo-400"></i>Technology &amp; Innovation (15%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.technology}/15</strong></li>
+                <li className="flex justify-between items-center"><span><i className="fas fa-tachometer-alt mr-2 text-yellow-400"></i>Market Mood (10%)</span><strong className="font-mono text-gray-800 dark:text-gray-200">{breakdown.mood}/10</strong></li>
+            </ul>
+        </div>
+    );
+
+    const RecommendationCard = ({ recommendation, onFeedback, feedbackStatus }) => {
+        const { coins } = useDApp();
+        const coinData = coins.find(c => c.id === recommendation.coinId);
+        const getScoreColor = (score) => { if (score > 75) return 'text-success'; if (score > 50) return 'text-yellow-400'; return 'text-danger'; };
+        const getRecommendationColor = (rec) => { if (rec.includes('Buy')) return 'bg-success'; if (rec.includes('Hold')) return 'bg-yellow-500'; return 'bg-danger'; };
+        return (
+            <div className="bg-gray-100 dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <div className="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-6">
+                    {coinData && <img src={coinData.image} alt={coinData.name} className="w-16 h-16"/>}
+                    <div className="flex-1 text-center md:text-left">
+                        <h3 className="text-2xl font-bold">{recommendation.coinName}</h3>
+                        <p className="text-gray-600 dark:text-gray-400 mt-1">{recommendation.reasoning}</p>
+                    </div>
+                    <div className="flex items-center space-x-6">
+                        <div className="text-center">
+                            <p className="text-gray-500 dark:text-gray-400 text-sm">Score</p>
+                            <p className={`text-5xl font-bold ${getScoreColor(recommendation.score)}`}>{recommendation.score}</p>
+                        </div>
+                        <div className={`${getRecommendationColor(recommendation.recommendation)} text-white font-bold py-2 px-4 rounded-md text-center`}>{recommendation.recommendation}</div>
+                    </div>
+                </div>
+                {recommendation.scoreBreakdown && <ScoreBreakdownDisplay breakdown={recommendation.scoreBreakdown} />}
+                <div className="border-t border-gray-200 dark:border-gray-700 mt-4 pt-4 text-center">
+                    {feedbackStatus ? (
+                        <p className="text-sm font-semibold text-primary"><i className="fas fa-check-circle mr-2"></i>Thank you for your feedback!</p>
+                    ) : (
+                        <>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Was this recommendation helpful?</p>
+                            <div className="flex justify-center space-x-3">
+                                <button onClick={() => onFeedback(recommendation.coinId, 'helpful')} className="flex items-center px-3 py-1 text-sm rounded-md bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-500/30 transition-colors">
+                                    <i className="far fa-thumbs-up mr-2"></i>Helpful
+                                </button>
+                                <button onClick={() => onFeedback(recommendation.coinId, 'not_helpful')} className="flex items-center px-3 py-1 text-sm rounded-md bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors">
+                                    <i className="far fa-thumbs-down mr-2"></i>Not Helpful
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     return (
-        <div className="space-y-6"><div className="flex justify-between items-center"><h1 className="text-3xl font-bold text-gray-900 dark:text-white">AI Recommendations</h1><button onClick={() => fetchRecommendations(true)} disabled={loading} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-500 disabled:bg-gray-600 flex items-center"><i className={`fas fa-sync mr-2 ${loading ? 'animate-spin' : ''}`}></i>{loading ? 'Refreshing...' : 'Refresh'}</button></div><p className="text-gray-600 dark:text-gray-400">These recommendations are generated by AI for the top 10 coins by market cap based on a weighted analysis of market data. This is not financial advice.</p>{error && <div className="bg-red-100 border border-danger text-red-700 dark:bg-red-900 dark:text-red-200 px-4 py-3 rounded-md">{error}</div>}{loading && recommendations.length === 0 ? (<div className="text-center p-10"><i className="fas fa-spinner fa-spin text-4xl text-primary"></i><p className="mt-4">{coins.length === 0 ? 'Loading market data...' : 'Analyzing market data and generating AI recommendations...'}</p></div>) : (<div className="space-y-4">{recommendations.map(rec => (<RecommendationCard key={rec.coinId} recommendation={rec} />))}</div>)}</div>
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">AI Recommendations</h1>
+                <button onClick={() => fetchRecommendations(true)} disabled={loading} className="bg-primary text-white px-4 py-2 rounded-md hover:bg-blue-500 disabled:bg-gray-600 flex items-center">
+                    <i className={`fas fa-sync mr-2 ${loading ? 'animate-spin' : ''}`}></i>{loading ? 'Refreshing...' : 'Refresh'}
+                </button>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400">These recommendations are generated by AI for the top 10 coins by market cap based on a weighted analysis of market data. This is not financial advice.</p>
+            {error && <div className="bg-red-100 border border-danger text-red-700 dark:bg-red-900 dark:text-red-200 px-4 py-3 rounded-md">{error}</div>}
+            {loading && recommendations.length === 0 ? (
+                <div className="text-center p-10">
+                    <i className="fas fa-spinner fa-spin text-4xl text-primary"></i>
+                    <p className="mt-4">{coins.length === 0 ? 'Loading market data...' : 'Analyzing market data and generating AI recommendations...'}</p>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    {recommendations.map(rec => (
+                        <RecommendationCard 
+                            key={rec.coinId} 
+                            recommendation={rec}
+                            onFeedback={handleFeedback}
+                            feedbackStatus={feedback[rec.coinId]}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
     );
 };
+
 
 const LearningCenter = () => {
     const AccordionItem = ({ title, icon, children }) => { const [isOpen, setIsOpen] = React.useState(false); return (
